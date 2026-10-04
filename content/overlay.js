@@ -56,6 +56,7 @@ export async function openOverlay() {
     if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
+      if (state?.cancelCapture) { state.cancelCapture(); return; }
       closeOverlay();
     } else if (e.key === 'Enter') {
       e.preventDefault();
@@ -78,6 +79,21 @@ export async function openOverlay() {
   } catch (err) {
     console.warn('[ScrollShot] selection module not available yet', err);
   }
+
+  // Capture driver (T3): Enter key / Capture button.
+  try {
+    const cap = await import(chrome.runtime.getURL('content/capture.js'));
+    api.setCaptureHandler(() => cap.captureSelection(api));
+    state && (state.captureModule = cap);
+  } catch (err) {
+    console.warn('[ScrollShot] capture module not available yet', err);
+  }
+
+  // Floating toolbar (T5) if available.
+  try {
+    const tb = await import(chrome.runtime.getURL('content/toolbar.js'));
+    if (typeof tb.attachToolbar === 'function') tb.attachToolbar(api);
+  } catch { /* not yet */ }
 }
 
 export function closeOverlay() {
@@ -180,6 +196,10 @@ export const api = {
   onClose(fn) { if (state) (state.onClose ||= []).push(fn); },
   /** Register the function run on Enter / Capture button. */
   setCaptureHandler(fn) { if (state) state.onCapture = fn; },
+  /** Trigger the registered capture handler. */
+  capture() { state?.onCapture?.(); },
+  /** While a multi-frame capture runs, Esc calls this instead of closing (T6). */
+  setCancelHandler(fn) { if (state) state.cancelCapture = fn; },
   el,
 };
 

@@ -1,5 +1,5 @@
 # Handoff — Screenshot Extension
-Last updated: 2026-10-04 | Last chat ended after: T2
+Last updated: 2026-10-04 | Last chat ended after: T3
 
 ## Status
 | Task | Title | Status (DONE / IN PROGRESS / PENDING) | Commit |
@@ -7,7 +7,7 @@ Last updated: 2026-10-04 | Last chat ended after: T2
 | T0 | Scaffold & handoff | DONE | (see git log) |
 | T1 | Activation + overlay | DONE | |
 | T2 | Selection box | DONE | |
-| T3 | Single-viewport capture + editor stub | PENDING | |
+| T3 | Single-viewport capture + editor stub | DONE | |
 | T4 | Edge auto-scroll | PENDING | |
 | T5 | Floating toolbar & fit presets | PENDING | |
 | T6 | Scroll-and-stitch capture | PENDING | |
@@ -18,12 +18,12 @@ Last updated: 2026-10-04 | Last chat ended after: T2
 | T11 | Freehand, highlighter, eraser, delete, polish | PENDING | |
 
 ## NEXT TASK
-T3: Single-viewport capture + editor stub — implement `content/capture.js` (export `captureSelection(api)`): api.hideUi() →
-wait 2 rAF → sendMessage CAPTURE_VISIBLE → crop dataUrl to selection (viewport-relative × DPR) on a canvas →
-SAVE_CAPTURE {capture:{kind:'single', dpr, viewport, document, selection, frames:[{dataUrl,scrollX,scrollY,width,height}]}} →
-OPEN_EDITOR {id} → api.close(). Wire it via `api.setCaptureHandler` from overlay.js (import capture.js there) and
-add a temporary Capture button or rely on Enter. Editor stub: `editor/editor.js` reads `?id`, `getCapture(id)` from
-shared/db.js, draws frames[0].blob to a canvas cropped to selection, then `deleteCapture(id)`.
+T4: Edge auto-scroll — implement `content/autoscroll.js` exporting `createAutoScroll(api)` returning
+`{ start(onFrame), update(clientX, clientY), stop() }`. selection.js already calls start() on pointerdown,
+update() on every pointermove, stop() on pointerup, and passes `applyDrag` as onFrame (call it after each scrollBy).
+rAF loop: if pointer within 60 px of top/bottom (and left/right) viewport edge, scrollBy speed ∝ closeness (max 25 px/frame);
+stop at document bounds (docSize from selection.js or own). Show an "Auto Scroll ↑↓" pill (`.autoscroll-pill` in overlay.css,
+add class to api.root) while active.
 
 ## What exists now (file map, 1 line per file)
 - manifest.json — MV3, permissions activeTab/scripting/storage/clipboardWrite, action, command `start-capture` (Alt+Shift+S), module service worker, web_accessible_resources for content/* and shared/*
@@ -34,7 +34,11 @@ shared/db.js, draws frames[0].blob to a canvas cropped to selection, then `delet
 - content/overlay.js — Shadow DOM host `#scrollshot-host`, 4 dim+blur `.panel`s laid out around selection (document coords → viewport), hint, toast, Esc closes / Enter → capture handler; exports `toggleOverlay, openOverlay, closeOverlay, setSelection, getSelection, hideUi, showUi, showToast, api`; dynamically imports `content/selection.js` and calls `attachSelection(api)` if present
 - content/overlay.css — fetched & injected into shadow root; styles for .root/.panel/.hint/.selection/.handle/.size-label/.toast
 - content/selection.js — `attachSelection(api)`: builds `.selection` + 8 handles + size label inside api.root; pointerdown on root → create/move/resize drag (document coords, min 10×10, clamped to docSize()); `applyDrag()` re-derives pointer doc position from lastClient+scroll so wheel/autoscroll grow the selection; calls optional `createAutoScroll(api)` from autoscroll.js (T4) with start(cb)/update(cx,cy)/stop(); exports `render, docSize, selectionApi`
-- content/autoscroll.js, toolbar.js, capture.js — empty placeholders
+- content/capture.js — `captureSelection(api)`: if selection fits viewport → `captureSingle` (scrolls selection into view if needed, restores scroll) else dynamic-import `content/stitch.js` `captureStitched(api, sel)` (T6; falls back to visible part); `grabFrame(api)` = hideUi → 2 rAF → CAPTURE_VISIBLE → {dataUrl, scrollX, scrollY, width, height}; then SAVE_CAPTURE → OPEN_EDITOR → api.close(). Record: {kind, dpr, viewport, document, selection, pageUrl, pageTitle, frames[]}
+- content/overlay.js additions — imports capture.js and registers `api.setCaptureHandler`; `api.capture()`, `api.setCancelHandler(fn)` (Esc calls it instead of closing when set — for T6); tries `toolbar.js attachToolbar(api)` (T5)
+- editor/compose.js — `composeCapture(record)` → {canvas, notice, scale}: draws every frame at its document offset relative to selection (DPR-aware, uses bitmap/frame CSS ratio), scales down to canvas limits with notice. Already handles multi-frame stitched records.
+- editor/editor.js — stub: reads ?id, getCapture, composeCapture → draws into `#base-canvas`, sets title, shows notice/errors in `#status`, then deleteCapture(id)
+- content/autoscroll.js, toolbar.js — empty placeholders
 - editor/editor.html, editor.css, editor.js (+ canvas-view, crop, export, annotations, history, tools/) — placeholders
 - lib/README.js — jsPDF to be vendored in T9
 - icons/16,32,48,128.png — generated indigo camera placeholder icons
@@ -57,6 +61,12 @@ shared/db.js, draws frames[0].blob to a canvas cropped to selection, then `delet
 - None yet.
 
 ## Manual test steps for the user (for the last finished task)
+1. Reload extension; open any page; Alt+Shift+S; drag a selection smaller than the window; press Enter.
+2. Overlay disappears; a new tab "Screenshot W×H — ScrollShot" opens showing exactly the selected area (check on a DPR 2 display: image is 2× pixel size, sharp).
+3. Select an area partially scrolled off-screen (still smaller than viewport) → page scrolls, captures, scroll position restored.
+4. Press Enter with no selection → toast "Drag to select an area first". Reloading the editor tab → "no longer available" message (one-shot storage).
+
+Previous (T2):
 1. Reload extension; open a long page (e.g. a Wikipedia article), scroll down a bit first.
 2. Alt+Shift+S → drag on the page → dashed blue box with 8 handles and "W × H px" label; area inside is sharp, outside dim+blurred.
 3. Drag inside box to move; drag handles to resize (all 8 directions); scroll the page with wheel (not dragging) → box stays glued to page content.
