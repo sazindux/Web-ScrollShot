@@ -1,1 +1,119 @@
-/* overlay styles — injected into the Shadow DOM (T1) */
+/* Styles for the capture overlay — loaded inside the Shadow DOM so page CSS cannot interfere. */
+:host {
+  all: initial;
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 13px;
+  color: #1E293B;
+  pointer-events: none;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+.root {
+  position: fixed;
+  inset: 0;
+  pointer-events: auto;
+  cursor: crosshair;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.root.hidden { display: none !important; }
+
+/* Four dim + blur panels surrounding the selection */
+.panel {
+  position: fixed;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  pointer-events: none;
+}
+
+/* Hint shown before a selection exists */
+.hint {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, 0.96);
+  color: #1E293B;
+  padding: 14px 22px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.25);
+  font-size: 14px;
+  text-align: center;
+  line-height: 1.5;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.hint kbd {
+  font: inherit;
+  font-weight: 600;
+  background: #EEF0FF;
+  color: #5B4CF0;
+  border-radius: 6px;
+  padding: 1px 7px;
+  border: 1px solid #D8D6FF;
+}
+.hint.hidden { display: none; }
+
+/* Selection box (T2) */
+.selection {
+  position: fixed;
+  border: 2px dashed #2F6BFF;
+  pointer-events: auto;
+  cursor: move;
+}
+.selection.hidden { display: none; }
+.handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border: 2px solid #2F6BFF;
+  border-radius: 50%;
+  pointer-events: auto;
+}
+.handle[data-dir="nw"] { left: -7px; top: -7px; cursor: nwse-resize; }
+.handle[data-dir="ne"] { right: -7px; top: -7px; cursor: nesw-resize; }
+.handle[data-dir="sw"] { left: -7px; bottom: -7px; cursor: nesw-resize; }
+.handle[data-dir="se"] { right: -7px; bottom: -7px; cursor: nwse-resize; }
+.handle[data-dir="n"]  { left: calc(50% - 6px); top: -7px; cursor: ns-resize; }
+.handle[data-dir="s"]  { left: calc(50% - 6px); bottom: -7px; cursor: ns-resize; }
+.handle[data-dir="w"]  { left: -7px; top: calc(50% - 6px); cursor: ew-resize; }
+.handle[data-dir="e"]  { right: -7px; top: calc(50% - 6px); cursor: ew-resize; }
+
+.size-label {
+  position: absolute;
+  left: 0;
+  top: -30px;
+  background: #1E293B;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.selection.label-inside .size-label { top: 6px; left: 6px; }
+
+/* Toast / notices */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  background: #1E293B;
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.3);
+  font-size: 13px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+.toast.show { opacity: 1; }
