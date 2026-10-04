@@ -66,7 +66,7 @@ export function docSize() {
   };
 }
 
-function clampRect(r) {
+export function clampRect(r) {
   const d = docSize();
   let x = Math.max(0, Math.min(r.x, d.width - MIN_SIZE));
   let y = Math.max(0, Math.min(r.y, d.height - MIN_SIZE));
