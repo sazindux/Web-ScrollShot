@@ -1,5 +1,5 @@
 # Handoff — Screenshot Extension
-Last updated: 2026-10-04 | Last chat ended after: T6
+Last updated: 2026-10-04 | Last chat ended after: T7
 
 ## Status
 | Task | Title | Status (DONE / IN PROGRESS / PENDING) | Commit |
@@ -11,21 +11,22 @@ Last updated: 2026-10-04 | Last chat ended after: T6
 | T4 | Edge auto-scroll | DONE | |
 | T5 | Floating toolbar & fit presets | DONE | |
 | T6 | Scroll-and-stitch capture | DONE | |
-| T7 | Editor shell | PENDING | |
+| T7 | Editor shell | DONE | |
 | T8 | Crop tool | PENDING | |
 | T9 | Export suite | PENDING | |
 | T10 | Annotation engine + shapes | PENDING | |
 | T11 | Freehand, highlighter, eraser, delete, polish | PENDING | |
 
 ## NEXT TASK
-T7: Editor shell — rewrite `editor/editor.html` + `editor.css` to the mockup layout: top bar (logo, Crop, Copy, Download ▾ PNG/JPG/WEBP,
-Export PDF, primary Export ▾), center `.workspace` (light gray) containing `canvas-view`, right panel "Crop Settings" (Width/Height inputs,
-link icon + "Keep aspect ratio" toggle), "Quick Actions" (Copy, Download, Export PDF), "File Format" select; bottom-left status
-"Canvas: W × H" + zoom % dropdown; bottom annotation toolbar placeholders (Shapes ▾, Freehand, Highlighter, Eraser, Delete, Undo, Redo,
-Pen Size slider "N px", color palette + custom picker). Implement `editor/canvas-view.js`: class CanvasView(container) holding base
-canvas + overlay canvas, zoom (Fit, 25–400%, Ctrl/Cmd+wheel around pointer, +/-/0 keys), pan (Space+drag / middle mouse), CSS
-transform-based rendering (`transform: translate() scale()`), `toImage(clientX, clientY)` converts to image px, `onViewChange` callback for status bar.
-Keep editor.js flow: getCapture → composeCapture → set base image → deleteCapture. Buttons wire later (T8/T9/T10).
+T8: Crop tool — implement `editor/crop.js` exporting `initCrop(editor)`; register `editor.hooks.crop = { start, apply, cancel }` and call it from
+`#btn-crop` (editor.js currently shows a "Crop tool coming soon" toast when `editor.hooks.crop` is absent — replace that wiring by importing
+crop.js in editor.js main() after setupView()). Crop box UI lives in `#crop-layer` (div inside `#stage`, image-pixel coordinates; since the
+stage is CSS-scaled, size handles with `transform: scale(1/zoom)` or re-render on `view.onViewChange`). 8 handles + drag-move, numeric inputs
+`#crop-w` / `#crop-h`, `#crop-link` + `#crop-aspect` lock, `#crop-actions` (Apply/Cancel, un-hide while cropping). Crop state = rectangle
+{x,y,width,height} in image px stored on `editor.crop`; applying = push to history (`editor/history.js`: class History(max 100) with
+push/undo/redo + `#btn-undo/#btn-redo` wiring) and visually clip: simplest is to set `view.setImage(croppedCanvas)` from `editor.image`
+drawn with the crop offset AND remember the cumulative offset so annotations (T10) keep image coords; or keep the base full and clip via
+`stage` width/height + canvas translate. Status bar "Canvas: W × H" must reflect the crop. Also pre-fill `#crop-w/#crop-h` with image size on load (`editor.hooks.onImageLoaded`).
 
 ## What exists now (file map, 1 line per file)
 - manifest.json — MV3, permissions activeTab/scripting/storage/clipboardWrite, action, command `start-capture` (Alt+Shift+S), module service worker, web_accessible_resources for content/* and shared/*
@@ -47,7 +48,12 @@ Keep editor.js flow: getCapture → composeCapture → set base image → delete
 - content/autoscroll.js — `createAutoScroll(api)` → {start(onFrame), update(cx,cy), stop(), isActive}; rAF loop, 60 px edge zone (all 4 edges), speed 2→25 px/frame quadratic, clamps to docSize, calls onFrame after each scroll; shows `.autoscroll-pill` (bottom-center, data-dir up/down) while scrolling
 - content/toolbar.js — `attachToolbar(api)`: `.toolbar.no-select` fixed top-center with Full Page / Full Width / Fit Left / Right / Top / Bottom / divider / indigo Capture (inline SVG icons); `applyPreset(api, action)` implements the exact preset definitions using selection.js `docSize()`+`clampRect()` then `render()`; Capture → `api.capture()`
 - content/selection.js — now also exports `clampRect`
-- editor/editor.html, editor.css, editor.js (+ canvas-view, crop, export, annotations, history, tools/) — placeholders
+- editor/editor.html — full shell: `.topbar` (brand, #btn-crop, #btn-copy, #dd-download [data-format png/jpeg/webp], #btn-pdf, #dd-export primary [data-export copy/png/jpeg/webp/pdf]); `.main` = `.workspace` (#viewport > #stage > #base-canvas + #overlay-canvas + #crop-layer; #notice; #empty-state; `.statusbar` #status-size, #dd-zoom [data-zoom fit/0.25…4], #zoom-out/#zoom-in) + `.side` (Crop Settings: #crop-w, #crop-h, #crop-link, #crop-aspect, #crop-actions #crop-apply/#crop-cancel; Quick Actions [data-export copy/download/pdf]; #file-format select); `.annobar` (#dd-shapes [data-tool rect/ellipse/arrow/line], [data-tool pen/highlighter/eraser], #btn-delete, #btn-undo, #btn-redo, #pen-size + #pen-size-label, #palette .swatch[data-color] + #custom-color); #toast
+- editor/editor.css — design tokens (--primary #5B4CF0, --accent #2F6BFF), .btn/.btn-primary, .dropdown(.open/.dropup/.dropdown-menu-right), workspace grid bg, .stage (transform-origin 0 0, checkerboard), statusbar, side cards/toggle, annobar .tool(.active)/.swatch(.active), .toast(.show/.error), .empty-card(.error)
+- editor/canvas-view.js — `class CanvasView({viewport, stage, base, overlay})`: setImage(canvas) (sets both canvases to image px, stage size, fit), fit(), setZoom(z, vx, vy), zoomIn/zoomOut (step list 10%…800%), panBy, toImage(clientX, clientY)/toClient(x,y), isPanTrigger(e), spaceDown; wheel = pan, Ctrl/Cmd+wheel = zoom around pointer, Space+drag / middle-drag = pan, ResizeObserver re-fits while fitMode; `onViewChange({zoom,width,height})`; exports ZOOM_MIN/MAX, ZOOM_PRESETS, isEditable(el)
+- editor/ui.js — `initDropdowns()` (generic .dropdown toggle/outside-click/Esc), `showToast(text, {error, duration})`
+- editor/editor.js — ES module; exports `editor = { view, image, captureId, color, hooks: {} }`; main(): initDropdowns → setupView (status bar, zoom dropdown, +/−/0 and Ctrl+0/+/− keys) → setupPlaceholders (pen size label, palette active state → editor.color + hooks.onColorChange, tool buttons → hooks.setTool or toast, crop/export buttons → toast unless hooks.crop / hooks.export set) → loadCapture (getCapture → composeCapture → view.setImage → hooks.onImageLoaded → deleteCapture; empty/error states in #empty-state)
+- editor/crop.js, export.js, annotations.js, history.js, tools/ — still placeholders
 - lib/README.js — jsPDF to be vendored in T9
 - icons/16,32,48,128.png — generated indigo camera placeholder icons
 - README.md — load-unpacked instructions, shortcuts
@@ -66,9 +72,16 @@ Keep editor.js flow: getCapture → composeCapture → set base image → delete
 - Constants: capture min interval 600 ms; retention 24 h; canvas max 16384/side, 268M px
 
 ## Known issues / TODO
-- None yet.
+- Editor: Space+drag pan uses capture-phase pointerdown on #viewport, so later tools must check `view.spaceDown`/`view.isPanTrigger(e)` and bail out.
+- Editor headless test (seeded IndexedDB record, 1200×3000 image) passed: fit → 25%, status bar/zoom dropdown/keys OK. Not yet verified in a real Chrome extension context by the user.
 
 ## Manual test steps for the user (for the last finished task)
+1. Reload extension; capture anything (single or Full Page). Editor tab opens with the new layout: top bar (ScrollShot logo, Crop, Copy, Download ▾, Export PDF, indigo Export ▾), gray dotted workspace with the image centered and fitted, right panel (Crop Settings / Quick Actions / File Format), bottom annotation toolbar.
+2. Bottom-left status shows "Canvas: W × H" (true image pixels, e.g. 2× on a Retina screen) and a zoom % button; click it → Fit / 25%…400% presets. +/− buttons and keys `+ − 0`, `Ctrl/Cmd + wheel` zoom around the pointer; wheel pans; Space+drag or middle-mouse drag pans. Window resize re-fits while in Fit mode.
+3. Dropdowns (Download, Export, Shapes, zoom) open/close on click, outside click and Esc. Not-yet-built actions show a dark toast "… coming soon".
+4. Open `editor/editor.html` without `?id` → "No capture to show" card; open with a bogus id → red "Capture unavailable" card.
+
+Previous (T6):
 1. Reload extension; open a long article (e.g. a Wikipedia page with a sticky/fixed header site like github.com or MDN). Alt+Shift+S → Full Page → Capture.
 2. Page scrolls step by step; a white progress card "Capturing n / N" with a violet bar shows; page UI (toolbar/dim) is hidden at each shot. Afterwards scroll position restored, scrollbars/fixed elements back to normal.
 3. Editor tab shows one seamless image of the whole page; fixed header appears only once at the top (not repeated per slice); bottom slice is not duplicated.
