@@ -5,6 +5,12 @@ scroll-and-stitch screenshots with a built-in annotation editor.
 Plain HTML + CSS + vanilla JavaScript — no bundler, no frameworks.
 
 ## Load unpacked
+<p align="center">
+  <img src="https://i.ibb.co/5WhhnXKN/file-362.jpg" width="30%" alt="open chrome://extensions">
+  <img src="https://i.ibb.co/nqGrsbYX/file-363.jpg" width="30%" alt="Enable Developer mode">
+  <img src="https://i.ibb.co/Zp3PWxjX/file-364.jpg" width="30%" alt="Click **Load unpacked** and select unziped folder">
+  <img src="https://i.ibb.co/ymJQV7x0/file-365.jpg" width="30%" alt="Pin the extension">
+</p>
 
 1. Open `chrome://extensions` (or `edge://extensions`, `brave://extensions`).
 2. Enable **Developer mode** (top-right toggle).
