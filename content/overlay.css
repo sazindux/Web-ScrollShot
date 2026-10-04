@@ -117,3 +117,27 @@
   transition: opacity .15s ease;
 }
 .toast.show { opacity: 1; }
+
+/* Auto-scroll pill (T4) */
+.autoscroll-pill {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: #fff;
+  color: #5B4CF0;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.25);
+  pointer-events: none;
+  border: 1px solid #E4E2FF;
+}
+.autoscroll-pill.hidden { display: none; }
+.autoscroll-pill svg { opacity: .35; transition: opacity .1s; }
+.autoscroll-pill[data-dir="up"] svg:first-child { opacity: 1; }
+.autoscroll-pill[data-dir="down"] svg:last-child { opacity: 1; }

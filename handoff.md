@@ -1,5 +1,5 @@
 # Handoff — Screenshot Extension
-Last updated: 2026-10-04 | Last chat ended after: T3
+Last updated: 2026-10-04 | Last chat ended after: T4
 
 ## Status
 | Task | Title | Status (DONE / IN PROGRESS / PENDING) | Commit |
@@ -8,7 +8,7 @@ Last updated: 2026-10-04 | Last chat ended after: T3
 | T1 | Activation + overlay | DONE | |
 | T2 | Selection box | DONE | |
 | T3 | Single-viewport capture + editor stub | DONE | |
-| T4 | Edge auto-scroll | PENDING | |
+| T4 | Edge auto-scroll | DONE | |
 | T5 | Floating toolbar & fit presets | PENDING | |
 | T6 | Scroll-and-stitch capture | PENDING | |
 | T7 | Editor shell | PENDING | |
@@ -18,12 +18,15 @@ Last updated: 2026-10-04 | Last chat ended after: T3
 | T11 | Freehand, highlighter, eraser, delete, polish | PENDING | |
 
 ## NEXT TASK
-T4: Edge auto-scroll — implement `content/autoscroll.js` exporting `createAutoScroll(api)` returning
-`{ start(onFrame), update(clientX, clientY), stop() }`. selection.js already calls start() on pointerdown,
-update() on every pointermove, stop() on pointerup, and passes `applyDrag` as onFrame (call it after each scrollBy).
-rAF loop: if pointer within 60 px of top/bottom (and left/right) viewport edge, scrollBy speed ∝ closeness (max 25 px/frame);
-stop at document bounds (docSize from selection.js or own). Show an "Auto Scroll ↑↓" pill (`.autoscroll-pill` in overlay.css,
-add class to api.root) while active.
+T5: Floating toolbar & fit presets — implement `content/toolbar.js` exporting `attachToolbar(api)` (overlay.js already
+imports and calls it). Build `.toolbar.no-select` (class names matter: selection.js ignores pointerdown on `.toolbar`/`.no-select`)
+appended to api.root, fixed top-center, white rounded bar, NOT blurred (it's inside .root above the panels). Buttons with inline
+SVG + label: Full Page, Full Width, Fit Left, Fit Right, Fit Top, Fit Bottom, divider, indigo Capture (camera icon).
+Logic: docSize() from selection.js (`import(chrome.runtime.getURL('content/selection.js'))` → `docSize`, `render`).
+Full Page → api.setSelection({x:0,y:0,width:doc.width,height:doc.height}); Full Width → x=0,width=doc.width keep y/h;
+Fit Left → x=0, width += oldX; Fit Right → width = doc.width - x; Fit Top → y=0, height += oldY; Fit Bottom → height = doc.height - y.
+After setSelection call selection `render()`. Capture → api.capture(). Presets with no selection: Full Page works; others use
+viewport rect as the starting selection. Hide toolbar during capture: it lives in .root so hideUi() already hides it.
 
 ## What exists now (file map, 1 line per file)
 - manifest.json — MV3, permissions activeTab/scripting/storage/clipboardWrite, action, command `start-capture` (Alt+Shift+S), module service worker, web_accessible_resources for content/* and shared/*
@@ -38,7 +41,8 @@ add class to api.root) while active.
 - content/overlay.js additions — imports capture.js and registers `api.setCaptureHandler`; `api.capture()`, `api.setCancelHandler(fn)` (Esc calls it instead of closing when set — for T6); tries `toolbar.js attachToolbar(api)` (T5)
 - editor/compose.js — `composeCapture(record)` → {canvas, notice, scale}: draws every frame at its document offset relative to selection (DPR-aware, uses bitmap/frame CSS ratio), scales down to canvas limits with notice. Already handles multi-frame stitched records.
 - editor/editor.js — stub: reads ?id, getCapture, composeCapture → draws into `#base-canvas`, sets title, shows notice/errors in `#status`, then deleteCapture(id)
-- content/autoscroll.js, toolbar.js — empty placeholders
+- content/autoscroll.js — `createAutoScroll(api)` → {start(onFrame), update(cx,cy), stop(), isActive}; rAF loop, 60 px edge zone (all 4 edges), speed 2→25 px/frame quadratic, clamps to docSize, calls onFrame after each scroll; shows `.autoscroll-pill` (bottom-center, data-dir up/down) while scrolling
+- content/toolbar.js — empty placeholder
 - editor/editor.html, editor.css, editor.js (+ canvas-view, crop, export, annotations, history, tools/) — placeholders
 - lib/README.js — jsPDF to be vendored in T9
 - icons/16,32,48,128.png — generated indigo camera placeholder icons
@@ -61,6 +65,12 @@ add class to api.root) while active.
 - None yet.
 
 ## Manual test steps for the user (for the last finished task)
+1. Reload extension; open a long page; Alt+Shift+S; start dragging a selection and move the pointer to within ~60 px of the bottom edge (keep button held).
+2. Page scrolls continuously (faster nearer the edge); the selection grows; a white "Auto Scroll" pill with the ↓ arrow highlighted appears at the bottom; scrolling stops at document end.
+3. Move pointer back up near the top edge → scrolls up, ↑ highlighted. Release → pill disappears, selection stays correct (check label W×H and that the box stays aligned to content while scrolling normally afterwards).
+4. Also works when dragging a resize handle (e.g. bottom "s" handle) and when moving the box. Mouse wheel while dragging also grows the selection.
+
+Previous (T3):
 1. Reload extension; open any page; Alt+Shift+S; drag a selection smaller than the window; press Enter.
 2. Overlay disappears; a new tab "Screenshot W×H — ScrollShot" opens showing exactly the selected area (check on a DPR 2 display: image is 2× pixel size, sharp).
 3. Select an area partially scrolled off-screen (still smaller than viewport) → page scrolls, captures, scroll position restored.
