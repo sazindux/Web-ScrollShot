@@ -16,7 +16,7 @@ After editing files, click the **Reload** (↻) button on the extension card, th
 ## Usage
 
 <p align="center">
-  <img src="https://i.ibb.co/R44S0ywg/file-361.jpg" width="30%" alt="Area Selection Overlay">
+  <img src="https://i.ibb.co/BVhLR1DM/file-360.jpg" width="30%" alt="Area Selection Overlay">
   <img src="https://i.ibb.co/R44S0ywg/file-361.jpg" width="30%" alt="Annotation Editor">
 </p>
 
