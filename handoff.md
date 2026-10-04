@@ -1,12 +1,12 @@
 # Handoff — Screenshot Extension
-Last updated: 2026-10-04 | Last chat ended after: T1
+Last updated: 2026-10-04 | Last chat ended after: T2
 
 ## Status
 | Task | Title | Status (DONE / IN PROGRESS / PENDING) | Commit |
 |------|-------|---------------------------------------|--------|
 | T0 | Scaffold & handoff | DONE | (see git log) |
 | T1 | Activation + overlay | DONE | |
-| T2 | Selection box | PENDING | |
+| T2 | Selection box | DONE | |
 | T3 | Single-viewport capture + editor stub | PENDING | |
 | T4 | Edge auto-scroll | PENDING | |
 | T5 | Floating toolbar & fit presets | PENDING | |
@@ -18,10 +18,12 @@ Last updated: 2026-10-04 | Last chat ended after: T1
 | T11 | Freehand, highlighter, eraser, delete, polish | PENDING | |
 
 ## NEXT TASK
-T2: Selection box — implement `content/selection.js` exporting `attachSelection(api)` (overlay.js already imports it
-and passes `api`: setSelection/getSelection(document coords)/root/shadow/onClose/setCaptureHandler/relayout/showToast).
-Create `.selection` div with 8 `.handle[data-dir]` + `.size-label` (CSS already in overlay.css). Pointer events on
-`api.root`: drag to create, drag inside to move, handles to resize, min size 10×10, label "W × H px", reposition on scroll.
+T3: Single-viewport capture + editor stub — implement `content/capture.js` (export `captureSelection(api)`): api.hideUi() →
+wait 2 rAF → sendMessage CAPTURE_VISIBLE → crop dataUrl to selection (viewport-relative × DPR) on a canvas →
+SAVE_CAPTURE {capture:{kind:'single', dpr, viewport, document, selection, frames:[{dataUrl,scrollX,scrollY,width,height}]}} →
+OPEN_EDITOR {id} → api.close(). Wire it via `api.setCaptureHandler` from overlay.js (import capture.js there) and
+add a temporary Capture button or rely on Enter. Editor stub: `editor/editor.js` reads `?id`, `getCapture(id)` from
+shared/db.js, draws frames[0].blob to a canvas cropped to selection, then `deleteCapture(id)`.
 
 ## What exists now (file map, 1 line per file)
 - manifest.json — MV3, permissions activeTab/scripting/storage/clipboardWrite, action, command `start-capture` (Alt+Shift+S), module service worker, web_accessible_resources for content/* and shared/*
@@ -31,7 +33,8 @@ Create `.selection` div with 8 `.handle[data-dir]` + `.size-label` (CSS already 
 - content/content.js — classic script; guard `window.__scrollshotLoaded`; onMessage PING→{ok}, TOGGLE_OVERLAY→ dynamic `import(content/overlay.js)` → `toggleOverlay()`
 - content/overlay.js — Shadow DOM host `#scrollshot-host`, 4 dim+blur `.panel`s laid out around selection (document coords → viewport), hint, toast, Esc closes / Enter → capture handler; exports `toggleOverlay, openOverlay, closeOverlay, setSelection, getSelection, hideUi, showUi, showToast, api`; dynamically imports `content/selection.js` and calls `attachSelection(api)` if present
 - content/overlay.css — fetched & injected into shadow root; styles for .root/.panel/.hint/.selection/.handle/.size-label/.toast
-- content/selection.js, autoscroll.js, toolbar.js, capture.js — empty placeholders
+- content/selection.js — `attachSelection(api)`: builds `.selection` + 8 handles + size label inside api.root; pointerdown on root → create/move/resize drag (document coords, min 10×10, clamped to docSize()); `applyDrag()` re-derives pointer doc position from lastClient+scroll so wheel/autoscroll grow the selection; calls optional `createAutoScroll(api)` from autoscroll.js (T4) with start(cb)/update(cx,cy)/stop(); exports `render, docSize, selectionApi`
+- content/autoscroll.js, toolbar.js, capture.js — empty placeholders
 - editor/editor.html, editor.css, editor.js (+ canvas-view, crop, export, annotations, history, tools/) — placeholders
 - lib/README.js — jsPDF to be vendored in T9
 - icons/16,32,48,128.png — generated indigo camera placeholder icons
@@ -54,6 +57,12 @@ Create `.selection` div with 8 `.handle[data-dir]` + `.size-label` (CSS already 
 - None yet.
 
 ## Manual test steps for the user (for the last finished task)
+1. Reload extension; open a long page (e.g. a Wikipedia article), scroll down a bit first.
+2. Alt+Shift+S → drag on the page → dashed blue box with 8 handles and "W × H px" label; area inside is sharp, outside dim+blurred.
+3. Drag inside box to move; drag handles to resize (all 8 directions); scroll the page with wheel (not dragging) → box stays glued to page content.
+4. Click outside the box → starts a new selection. Tiny click (<10px) clears selection, hint re-appears. Esc closes.
+
+Previous (T1):
 1. chrome://extensions → Developer mode → Load unpacked → select repo folder (or Reload).
 2. Open any normal https page (e.g. wikipedia). Click the toolbar icon or press Alt+Shift+S → page dims and blurs, a white hint card appears in the center.
 3. Press Esc → overlay disappears completely; page is untouched.
