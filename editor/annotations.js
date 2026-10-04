@@ -13,7 +13,7 @@ import { showToast } from './ui.js';
 import { isEditable } from './canvas-view.js';
 import {
   drawShape, hitTest, boundsOf, outerBounds, handlesOf, resizeShape, translateShape,
-  cloneShape, HANDLE_CURSORS, SHAPE_TYPES, STROKE_TYPES, HIGHLIGHT_TYPES,
+  cloneShape, smoothStroke, constrain, HANDLE_CURSORS, SHAPE_TYPES, STROKE_TYPES, HIGHLIGHT_TYPES,
 } from './tools/shapes.js';
 
 const $ = (s) => document.querySelector(s);
@@ -33,10 +33,12 @@ export function initAnnotations(editor) {
     selectedId: null,
     drag: null,            // active gesture
     hoverCursor: '',
-    highlightMode: 'rect', // 'rect' | 'pen' (T11 toggles)
+    highlightMode: 'rect', // 'rect' | 'pen'
     renderQueued: false,
+    eraseHoverId: null,    // object under the eraser pointer (red outline)
   };
   const label = $('#shape-label');
+  const hlLabel = $('#highlight-label');
 
   /* ───────── helpers ───────── */
   const size = () => parseInt($('#pen-size').value, 10) || 4;
@@ -56,11 +58,48 @@ export function initAnnotations(editor) {
 
   function render() {
     if (!view.imageWidth) return;
+    // Large images: while a gesture is active, only repaint the region touched
+    // by the moving object (previous + current bounds) instead of the full overlay.
+    const target = state.drag?.draft ?? state.drag?.obj;
+    const big = view.imageWidth * view.imageHeight > 4e6;
+    if (big && target && state.drag) {
+      const now = padRect(outerBounds(target), screenToImage(HANDLE_PX + 4) + (target.type === 'arrow' ? target.size * 3.2 : 0));
+      const dirty = state.drag.lastDirty ? unionRect(state.drag.lastDirty, now) : now;
+      state.drag.lastDirty = now;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(dirty.x, dirty.y, dirty.w, dirty.h); ctx.clip();
+      ctx.clearRect(dirty.x, dirty.y, dirty.w, dirty.h);
+      renderObjects(ctx);
+      if (state.drag.draft) drawShape(ctx, state.drag.draft);
+      ctx.restore();
+      return;
+    }
     ctx.clearRect(0, 0, view.imageWidth, view.imageHeight);
     renderObjects(ctx);
     if (state.drag?.draft) drawShape(ctx, state.drag.draft);
     const sel = selected();
     if (sel && state.tool === 'select') drawSelection(sel);
+    if (state.tool === 'eraser' && state.eraseHoverId != null) {
+      const o = objects.find((x) => x.id === state.eraseHoverId);
+      if (o) drawEraseHover(o);
+    }
+  }
+
+  function padRect(b, p) { return { x: b.x - p, y: b.y - p, w: b.w + p * 2, h: b.h + p * 2 }; }
+  function unionRect(a, b) {
+    const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+    return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
+  }
+
+  function drawEraseHover(obj) {
+    const b = outerBounds(obj);
+    const pad = screenToImage(3);
+    ctx.save();
+    ctx.strokeStyle = '#EF4444';
+    ctx.lineWidth = screenToImage(1.5);
+    ctx.setLineDash([screenToImage(4), screenToImage(3)]);
+    ctx.strokeRect(b.x - pad, b.y - pad, b.w + pad * 2, b.h + pad * 2);
+    ctx.restore();
   }
 
   function drawSelection(obj) {
@@ -143,9 +182,11 @@ export function initAnnotations(editor) {
 
   /* ───────── tools ───────── */
   function setTool(name) {
+    if (!view.imageWidth && name !== 'select') { showToast('Load a capture first'); return; }
     // Clicking the already-active tool toggles back to Select.
     state.tool = (name !== 'select' && name === state.tool) ? 'select' : name;
     if (state.tool !== 'select') state.selectedId = null;
+    state.eraseHoverId = null;
     document.querySelectorAll('.annobar [data-tool]').forEach((b) => b.classList.toggle('active', b.dataset.tool === state.tool));
     const shapeBtn = $('#dd-shapes .dropdown-toggle');
     const isShape = SHAPE_TYPES.includes(state.tool);
@@ -154,6 +195,12 @@ export function initAnnotations(editor) {
     viewport.dataset.tool = state.tool;
     updateCursor();
     requestRender();
+  }
+
+  function setHighlightMode(mode) {
+    state.highlightMode = mode === 'pen' ? 'pen' : 'rect';
+    document.querySelectorAll('#dd-highlight [data-hl-mode]').forEach((b) => b.classList.toggle('active', b.dataset.hlMode === state.highlightMode));
+    if (hlLabel) hlLabel.textContent = state.highlightMode === 'pen' ? 'Highlight (free)' : 'Highlighter';
   }
 
   function updateCursor(pt) {
@@ -165,7 +212,10 @@ export function initAnnotations(editor) {
       if (h) cur = HANDLE_CURSORS[h];
       else if (pt && objectAt(pt)) cur = 'move';
     } else if (state.tool === 'eraser') {
-      cur = pt && objectAt(pt) ? 'pointer' : 'not-allowed';
+      const hit = pt ? objectAt(pt) : null;
+      cur = hit ? 'pointer' : '';
+      const id = hit?.id ?? null;
+      if (id !== state.eraseHoverId) { state.eraseHoverId = id; requestRender(); }
     } else cur = 'crosshair';
     if (cur !== state.hoverCursor) { state.hoverCursor = cur; viewport.style.cursor = cur; }
   }
@@ -252,11 +302,11 @@ export function initAnnotations(editor) {
     if (d.kind === 'draw') {
       const b = boundsOf(d.draft);
       const minPx = screenToImage(3);
-      const tooSmall = STROKE_TYPES.has(d.draft.type) ? d.draft.points.length < 2 && b.w < minPx : (b.w < minPx && b.h < minPx);
+      const isStroke = STROKE_TYPES.has(d.draft.type);
+      const tooSmall = isStroke ? (d.draft.points.length < 2 && b.w < minPx) : (b.w < minPx && b.h < minPx);
       if (tooSmall) { requestRender(); return; }
-      addObject(d.draft);
-      if (STROKE_TYPES.has(d.draft.type)) return;             // keep drawing tool active for strokes
-      // Shapes: stay on tool too (user can press Esc / click Select to leave).
+      if (isStroke) d.draft.points = smoothStroke(d.draft.points);
+      addObject(d.draft);     // tool stays active so several objects can be drawn in a row
     } else if (d.kind === 'move' && d.moved) {
       commitTransform(d.obj, d.before, 'Move annotation');
     } else if (d.kind === 'resize') {
@@ -265,22 +315,19 @@ export function initAnnotations(editor) {
     requestRender();
   }
 
-  function constrain(a, b, type) {
-    const dx = b.x - a.x, dy = b.y - a.y;
-    if (type === 'line' || type === 'arrow') {
-      const ang = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
-      const len = Math.hypot(dx, dy);
-      return { x: a.x + Math.cos(ang) * len, y: a.y + Math.sin(ang) * len };
-    }
-    const s = Math.max(Math.abs(dx), Math.abs(dy));
-    return { x: a.x + Math.sign(dx || 1) * s, y: a.y + Math.sign(dy || 1) * s };
-  }
-
   viewport.addEventListener('pointerdown', onDown);
   viewport.addEventListener('pointermove', onMove);
   viewport.addEventListener('pointerup', onUp);
   viewport.addEventListener('pointercancel', onUp);
   viewport.addEventListener('pointerleave', () => { if (!state.drag) updateCursor(); });
+  viewport.addEventListener('contextmenu', (e) => { if (state.tool !== 'select' || state.selectedId) e.preventDefault(); });
+
+  $('#dd-highlight')?.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-hl-mode]');
+    if (!b) return;
+    setHighlightMode(b.dataset.hlMode);
+    if (state.tool !== 'highlighter') setTool('highlighter');
+  });
 
   /* ───────── toolbar + keyboard ───────── */
   $('#btn-delete').addEventListener('click', deleteSelected);
@@ -346,7 +393,7 @@ export function initAnnotations(editor) {
   /* ───────── hooks ───────── */
   editor.hooks.setTool = setTool;
   editor.hooks.getTool = () => state.tool;
-  editor.hooks.setHighlightMode = (m) => { state.highlightMode = m; };
+  editor.hooks.setHighlightMode = setHighlightMode;
   editor.hooks.getHighlightMode = () => state.highlightMode;
   editor.hooks.renderAnnotations = (c) => renderObjects(c);
   editor.hooks.hasSelection = () => !!state.selectedId;
@@ -363,5 +410,6 @@ export function initAnnotations(editor) {
     requestRender();
   };
   setTool('select');
+  setHighlightMode('rect');
   return editor.hooks;
 }

@@ -32,7 +32,37 @@ After editing files, click the **Reload** (↻) button on the extension card, th
 | Editor | `Ctrl/Cmd+Shift+Z`, `Ctrl+Y` | Redo |
 | Editor | `Delete` / `Backspace` | Delete selected annotation |
 | Editor | `Ctrl/Cmd+C` | Copy image (when nothing is selected) |
-| Editor | `+` / `-` / `0` | Zoom in / out / fit |
+| Editor | `+` / `-` / `0`, `Ctrl/Cmd+wheel` | Zoom in / out / fit, zoom around pointer |
+| Editor | `Space`+drag, middle-drag, wheel | Pan |
+| Editor | `C` | Toggle crop mode (`Enter` apply, `Esc` cancel) |
+| Editor | `V` `R` `O` `A` `L` `P` `H` `E` | Select, Rectangle, Circle, Arrow, Line, Freehand, Highlighter, Eraser |
+| Editor | `Shift` while drawing | Square / circle / 45° line |
+| Editor | `Esc` | Cancel drag → back to Select → deselect |
+
+## Editor tools
+
+- **Crop** — drag box with 8 handles, numeric Width/Height, aspect lock; non-destructive and undoable.
+- **Shapes** — Rectangle, Circle, Arrow, Line. Click a shape in Select mode to move/resize it;
+  the palette and Pen Size slider change the selected object.
+- **Freehand** — smoothed pen stroke. **Highlighter** — yellow, 35 % multiply; the ▾ next to it
+  switches between *Area highlight* and *Freehand highlight*.
+- **Eraser** — removes the whole annotation under the pointer (click or drag across); **Delete** removes
+  the selected one. Undo/Redo cover every add, move, resize, colour, size, delete, clear and crop (100 steps).
+- **Export** — Copy, PNG, JPG, WEBP, PDF at full original resolution; zoom never affects output.
+
+## Manual test checklist
+
+1. **Load** — extension loads with no manifest errors; icon badge `!` on `chrome://` pages.
+2. **Overlay** — icon / `Alt+Shift+S` dims + blurs the page; `Esc` closes; second press toggles.
+3. **Selection** — drag to select, 8 handles, move, W × H label; box stays glued to content while scrolling.
+4. **Auto-scroll** — drag a handle near the top/bottom edge: page scrolls, selection grows, pill shows direction.
+5. **Presets** — Full Width / Fit Left / Right / Top / Bottom / Full Page behave as defined.
+6. **Stitch** — Full Page on a long article with a sticky header → one seamless image, header once; `Esc` mid-capture restores the page.
+7. **Editor** — image opens fitted; zoom/pan smooth; status bar shows true pixel size.
+8. **Crop** — apply, undo, redo; numeric inputs + aspect lock exact to the pixel.
+9. **Export** — Copy, PNG, JPG (white bg), WEBP, PDF all match the preview incl. annotations and crop.
+10. **Annotations** — draw each shape, freehand, both highlighter modes; select/move/resize; recolour/resize selected; eraser click + drag; Delete key; Undo/Redo through everything; export contains them.
+11. **Large image** — very tall Full Page (>16k px) shows a scale notice and still annotates fluidly.
 
 ## Restricted pages
 

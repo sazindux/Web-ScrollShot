@@ -222,3 +222,31 @@ export function resizeShape(obj, handle, orig, pt) {
 export function cloneShape(obj) {
   return { ...obj, points: obj.points.map((p) => ({ x: p.x, y: p.y })) };
 }
+
+/* ───────── gesture helpers ───────── */
+
+/** Light 3-point moving average (endpoints kept) to remove pointer jitter. */
+export function smoothStroke(pts) {
+  if (pts.length < 3) return pts;
+  const out = [pts[0]];
+  for (let i = 1; i < pts.length - 1; i++) {
+    out.push({
+      x: (pts[i - 1].x + pts[i].x * 2 + pts[i + 1].x) / 4,
+      y: (pts[i - 1].y + pts[i].y * 2 + pts[i + 1].y) / 4,
+    });
+  }
+  out.push(pts[pts.length - 1]);
+  return out;
+}
+
+/** Shift-constraint: squares for boxes, 45° steps for line/arrow. */
+export function constrain(a, b, type) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  if (type === 'line' || type === 'arrow') {
+    const ang = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
+    const len = Math.hypot(dx, dy);
+    return { x: a.x + Math.cos(ang) * len, y: a.y + Math.sin(ang) * len };
+  }
+  const s = Math.max(Math.abs(dx), Math.abs(dy));
+  return { x: a.x + Math.sign(dx || 1) * s, y: a.y + Math.sign(dy || 1) * s };
+}

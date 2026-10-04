@@ -135,3 +135,9 @@ button.status-item:hover { background: var(--bg); color: var(--text); }
 .toast { position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%) translateY(8px); padding: 10px 16px; background: #0F172A; color: #fff; border-radius: 10px; box-shadow: var(--shadow-lg); opacity: 0; transition: opacity .18s, transform .18s; z-index: 100; pointer-events: none; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.error { background: #B91C1C; }
+/* Highlighter split button + eraser hover (T11) */
+#dd-highlight { display: inline-flex; align-items: center; gap: 0; }
+#dd-highlight .tool[data-tool] { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.tool-chev { padding: 0 6px; border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -1px; }
+#dd-highlight .tool[data-tool].active + .tool-chev { border-color: rgba(91,76,240,.35); background: var(--primary-soft); color: var(--primary); }
+.viewport[data-tool="eraser"] { cursor: cell; }

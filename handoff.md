@@ -1,5 +1,5 @@
 # Handoff — Screenshot Extension
-Last updated: 2026-10-04 | Last chat ended after: T10
+Last updated: 2026-10-04 | Last chat ended after: T11 (ALL TASKS DONE)
 
 ## Status
 | Task | Title | Status (DONE / IN PROGRESS / PENDING) | Commit |
@@ -15,24 +15,12 @@ Last updated: 2026-10-04 | Last chat ended after: T10
 | T8 | Crop tool | DONE | |
 | T9 | Export suite | DONE | |
 | T10 | Annotation engine + shapes | DONE | |
-| T11 | Freehand, highlighter, eraser, delete, polish | PENDING | |
+| T11 | Freehand, highlighter, eraser, delete, polish | DONE | |
 
 ## NEXT TASK
-T11: Freehand, highlighter, eraser, delete, polish. The engine in `editor/annotations.js` ALREADY implements basic versions of
-pen (`type:'pen'`, smoothed quadratic polyline in shapes.js `drawPolyline`), highlighter (`hl-rect` filled / `hl-pen` stroke, yellow
-#FACC15 default when palette colour is the default blue, opacity .35, `multiply`), object eraser (click + drag-erase via `deleteObject`)
-and delete (#btn-delete, Delete/Backspace). What REMAINS for T11:
-1. Highlighter mode switch UI (rect vs freehand): add a small dropup/toggle next to the Highlighter button (e.g. make it a `.dropdown
-   .dropup` like #dd-shapes with items "Area" / "Freehand") → `editor.hooks.setHighlightMode('rect'|'pen')`; show the current mode in
-   the button label.
-2. Freehand smoothing/thinning: optionally decimate points (e.g. drop points closer than 1.5 screen px — already done on input) and apply
-   a light moving-average before commit in `onUp` for `pen`/`hl-pen`.
-3. Eraser hover feedback (e.g. outline the object under the pointer in red before clicking) — optional polish.
-4. Empty/error states: tool buttons should toast "Load a capture first" when `!view.imageWidth` (currently they silently activate).
-5. Performance on large images: `render()` clears/redraws the full overlay each frame; for >30 MP images consider drawing only when
-   objects change (already rAF-batched) and skipping `drawSelection` while dragging strokes. Verify freehand on a 16k-tall stitched image.
-6. Keyboard shortcut cheat-sheet in README; final manual test checklist (all features end-to-end) in README + handoff.
-7. Update `editor/tools/README.js` (remove placeholder) and the file map below.
+None — T0–T11 are complete. Remaining work is user verification in a real Chrome extension context (see checklist in README.md
+"Manual test checklist") and fixing anything reported. Candidate follow-ups (not in scope, only if the user asks): quality slider for
+JPEG/WEBP, multi-select (marquee) of annotations, eraser hover on touch devices, persisting annotations across editor reloads.
 
 ## What exists now (file map, 1 line per file)
 - manifest.json — MV3, permissions activeTab/scripting/storage/clipboardWrite, action, command `start-capture` (Alt+Shift+S), module service worker, web_accessible_resources for content/* and shared/*
@@ -65,6 +53,8 @@ and delete (#btn-delete, Delete/Backspace). What REMAINS for T11:
 - editor/export.js — `initExport(editor)` → `editor.hooks.export = {copy, download(fmt), pdf, render}`; `renderExport(editor,{background})` = offscreen canvas of crop size, drawImage(base, -crop.x,-crop.y) then `hooks.renderAnnotations?.(ctx)` (ctx translated to full-image coords); `FORMATS` png/jpeg(white bg, q .92)/webp(q .92); `timestampName(ext)` → `screenshot-YYYYMMDD-HHmmss.ext`; `downloadBlob` via `<a download>`; copy = ClipboardItem image/png; PDF = vendored jsPDF (`globalThis.jspdf.jsPDF`, unit pt, page = px×0.75, PNG for <1.5 MP else JPEG .92, clamps to 14400 pt with notice). Wires #btn-copy, #btn-pdf, [data-format], [data-export] (copy/png/jpeg/webp/pdf/download→#file-format), Ctrl/Cmd+C when `!hooks.hasSelection?.()` and no text selection. Toasts "Copied!" / "Downloaded PNG" / "PDF exported"; errors as red toasts. Busy guard (`body.exporting`).
 - lib/jspdf.umd.min.js — jsPDF 2.5.2 UMD (MIT), loaded via plain `<script>` in editor.html before the module script; verified free of eval/new Function (MV3 CSP-safe)
 - editor/tools/shapes.js — pure geometry/drawing per type: `SHAPE_TYPES` (rect/ellipse/arrow/line), `BOX_TYPES`, `STROKE_TYPES` (pen/hl-pen), `HIGHLIGHT_TYPES` (hl-rect/hl-pen, drawn with `multiply`); `boundsOf`, `outerBounds`, `drawShape(ctx,obj)` (arrow = shaft + filled head `arrowHeadLength(size)=max(10,size*3.2)`; polylines smoothed via quadratic midpoints), `hitTest(obj, pt, tol)`, `translateShape`, `handlesOf` (8 box handles or p0/p1 for line/arrow), `HANDLE_CURSORS`, `resizeShape(obj, handle, orig, pt)` (polylines scaled into new bounds, flips allowed), `cloneShape`
+- editor/tools/shapes.js additions (T11) — `smoothStroke(pts)` (3-point moving average, endpoints kept), `constrain(a,b,type)` (Shift: square / 45°)
+- editor/annotations.js additions (T11) — `#dd-highlight` split button (Highlighter + ▾ → `[data-hl-mode=rect|pen]`, label "Highlighter" / "Highlight (free)"); `setHighlightMode` exported via hooks; eraser hover draws a red dashed outline around the object under the pointer (`state.eraseHoverId`) and cursor `pointer`; tools toast "Load a capture first" when no image; strokes smoothed in `onUp`; for images > 4 MP `render()` repaints only the dirty rect (union of previous/current bounds of the dragged object) during gestures; context menu suppressed while a tool is active
 - editor/annotations.js — `initAnnotations(editor)`: `editor.annotations=[]` of {id,type,points,color,size,opacity} in full-image px; pointer gestures on `#viewport` (draw / select / move / resize / erase; bails on pan trigger, Space, crop active); rAF-batched `requestRender()` → clears overlay, draws objects + draft + dashed selection with screen-constant handles (sized by 1/zoom); Shift constrains squares/45° lines; tiny drags (<3 screen px) discarded; all mutations push History cmds (add/delete/move/resize/colour/size/clear); clicking the active tool again returns to Select; keys V/R/O/A/L/P/H/E select tools, Esc → cancel drag → Select → deselect, Delete/Backspace delete selected; pen-size slider & palette change the SELECTED object (undoable). Hooks set: `setTool, getTool, setHighlightMode, getHighlightMode, renderAnnotations(ctx), hasSelection, requestRender, clearAnnotations`; chains onColorChange / onCropStart (deselect) / onImageLoaded (reset) / view.onViewChange (re-render handles on zoom)
 - lib/README.js — jsPDF to be vendored in T9
 - icons/16,32,48,128.png — generated indigo camera placeholder icons
@@ -98,6 +88,15 @@ and delete (#btn-delete, Delete/Backspace). What REMAINS for T11:
 - Editor headless test (seeded IndexedDB record, 1200×3000 image) passed: fit → 25%, status bar/zoom dropdown/keys OK. Not yet verified in a real Chrome extension context by the user.
 
 ## Manual test steps for the user (for the last finished task)
+1. Reload extension; capture anything. **Freehand** (`P`) → draw a wavy stroke: smooth, round caps, pen-size thickness and palette colour. Draw several in a row (tool stays active).
+2. **Highlighter** (`H`) → drag an area over text: translucent yellow (multiply — text stays readable). Click the small **▾** right of Highlighter → "Freehand highlight" (label becomes "Highlight (free)") → drag a thick translucent stroke (≥ 12 px). Pick another palette colour first → highlighter uses it.
+3. **Eraser** (`E`) → hovering an annotation shows a red dashed outline + pointer cursor; click deletes it; hold and sweep across several → all swept objects deleted. Undo restores each in reverse order.
+4. **Delete** → Select (`V`), click an object, press Delete/Backspace or the Delete button. Esc: cancels an in-progress drag, then returns to Select, then deselects.
+5. Open `editor/editor.html` with no `?id` and click a tool → toast "Load a capture first". Full Page capture of a very long page (> 8 MP) → freehand drawing stays fluid (dirty-rect repaint).
+6. Export (Copy / PNG / JPG / WEBP / PDF) → strokes and highlights appear exactly as previewed; highlighter stays translucent; no handles/outlines in output.
+7. Run the full checklist in README.md § "Manual test checklist" end to end.
+
+Previous (T10):
 1. Reload extension; capture anything. In the editor open **Shapes ▾** → Rectangle (button label becomes "Rectangle" and highlights). Drag on the image → blue 4 px rectangle appears live while dragging. Draw a Circle, Arrow (filled head at the end point) and Line the same way; hold Shift for a square / circle / 45° line. Zoom in/out — shapes stay glued to the image.
 2. Click Shapes/active tool again (or press Esc / `V`) → Select mode. Click a shape → dashed blue outline + white handles (8 for boxes, 2 endpoints for line/arrow). Drag inside to move; drag a handle to resize (corners/edges; endpoints for lines). Click empty space → deselect. Click where shapes overlap → top-most is picked.
 3. With a shape selected, pick another palette colour or move the Pen Size slider → the shape updates. **Delete** button or Delete/Backspace removes it. Undo/Redo (buttons, Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y) step through add, move, resize, colour, size and delete in order; Undo also crosses crop operations.
