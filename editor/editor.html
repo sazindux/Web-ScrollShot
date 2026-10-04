@@ -65,7 +65,17 @@
           <div class="stage" id="stage">
             <canvas id="base-canvas"></canvas>
             <canvas id="overlay-canvas"></canvas>
-            <div id="crop-layer" class="crop-layer" hidden></div>
+          </div>
+          <!-- Crop UI lives in viewport space (unscaled) so handles stay crisp at any zoom -->
+          <div id="crop-layer" class="crop-layer" hidden>
+            <div class="crop-box" id="crop-box">
+              <div class="crop-grid"></div>
+              <div class="crop-handle" data-handle="nw"></div><div class="crop-handle" data-handle="n"></div>
+              <div class="crop-handle" data-handle="ne"></div><div class="crop-handle" data-handle="e"></div>
+              <div class="crop-handle" data-handle="se"></div><div class="crop-handle" data-handle="s"></div>
+              <div class="crop-handle" data-handle="sw"></div><div class="crop-handle" data-handle="w"></div>
+              <div class="crop-label" id="crop-label"></div>
+            </div>
           </div>
         </div>
 

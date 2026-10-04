@@ -6,12 +6,16 @@ import { getCapture, deleteCapture } from '../shared/db.js';
 import { composeCapture } from './compose.js';
 import { CanvasView, isEditable } from './canvas-view.js';
 import { initDropdowns, showToast } from './ui.js';
+import { initHistory } from './history.js';
+import { initCrop } from './crop.js';
 
 const $ = (sel) => document.querySelector(sel);
 
 export const editor = {
   view: null,
   image: null,         // HTMLCanvasElement with the full-resolution base image
+  crop: null,          // {x,y,width,height} visible/exported region in image px (crop.js)
+  history: null,       // History instance (history.js)
   captureId: null,
   // Hooks filled by later modules (crop.js / export.js / annotations.js)
   hooks: {},
@@ -110,8 +114,6 @@ function setupPlaceholders() {
   });
 
   // Actions that are implemented later show a friendly toast for now.
-  const later = (msg) => () => { if (!editor.image) return; showToast(msg); };
-  if (!editor.hooks.crop) $('#btn-crop').addEventListener('click', later('Crop tool coming soon'));
   document.querySelectorAll('[data-export], #btn-copy, #btn-pdf, [data-format]').forEach((b) => {
     b.addEventListener('click', (e) => {
       if (editor.hooks.export) return; // export.js handles it
@@ -160,6 +162,8 @@ async function loadCapture(view) {
 async function main() {
   initDropdowns();
   const view = setupView();
+  initHistory(editor);
+  initCrop(editor);
   setupPlaceholders();
   $('#empty-state').hidden = false;
   $('#empty-title').textContent = 'Loading capture…';

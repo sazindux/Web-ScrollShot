@@ -25,8 +25,11 @@ export class CanvasView {
     this.baseCtx = base.getContext('2d');
     this.overlayCtx = overlay.getContext('2d');
 
-    this.width = 0;
+    this.width = 0;                 // VISIBLE size (crop rect) in image px
     this.height = 0;
+    this.imageWidth = 0;            // full base image size in image px
+    this.imageHeight = 0;
+    this.origin = { x: 0, y: 0 };   // top-left of the visible crop rect in image px
     this.zoom = 1;
     this.panX = 0;
     this.panY = 0;
@@ -41,21 +44,37 @@ export class CanvasView {
   /* ───────── image ───────── */
 
   setImage(source) {
-    this.width = source.width;
-    this.height = source.height;
-    this.base.width = this.width;
-    this.base.height = this.height;
-    this.overlay.width = this.width;
-    this.overlay.height = this.height;
-    this.stage.style.width = `${this.width}px`;
-    this.stage.style.height = `${this.height}px`;
+    this.imageWidth = source.width;
+    this.imageHeight = source.height;
+    this.base.width = this.imageWidth;
+    this.base.height = this.imageHeight;
+    this.overlay.width = this.imageWidth;
+    this.overlay.height = this.imageHeight;
     this.baseCtx.drawImage(source, 0, 0);
     this.fitMode = true;
-    this.fit();
+    this.setCropRect({ x: 0, y: 0, width: this.imageWidth, height: this.imageHeight });
+  }
+
+  /**
+   * Show only `rect` (image px) of the full image: the stage shrinks to the
+   * rect and both canvases are offset so the rect's top-left sits at 0,0.
+   * Canvas pixels are untouched, so all tool coordinates stay in full-image px.
+   */
+  setCropRect(rect) {
+    this.origin = { x: rect.x, y: rect.y };
+    this.width = rect.width;
+    this.height = rect.height;
+    this.stage.style.width = `${this.width}px`;
+    this.stage.style.height = `${this.height}px`;
+    for (const c of [this.base, this.overlay]) {
+      c.style.left = `${-rect.x}px`;
+      c.style.top = `${-rect.y}px`;
+    }
+    if (this.fitMode) this.fit(); else this._apply();
   }
 
   clearOverlay() {
-    this.overlayCtx.clearRect(0, 0, this.width, this.height);
+    this.overlayCtx.clearRect(0, 0, this.imageWidth, this.imageHeight);
   }
 
   /* ───────── zoom / pan ───────── */
@@ -119,15 +138,23 @@ export class CanvasView {
   toImage(clientX, clientY) {
     const { left, top } = this.viewportSize();
     return {
-      x: (clientX - left - this.panX) / this.zoom,
-      y: (clientY - top - this.panY) / this.zoom,
+      x: (clientX - left - this.panX) / this.zoom + this.origin.x,
+      y: (clientY - top - this.panY) / this.zoom + this.origin.y,
     };
   }
 
   /** Image pixel → client coordinates. */
   toClient(x, y) {
     const { left, top } = this.viewportSize();
-    return { x: left + this.panX + x * this.zoom, y: top + this.panY + y * this.zoom };
+    return {
+      x: left + this.panX + (x - this.origin.x) * this.zoom,
+      y: top + this.panY + (y - this.origin.y) * this.zoom,
+    };
+  }
+
+  /** Image pixel → viewport-local coordinates (relative to the viewport's top-left). */
+  toViewport(x, y) {
+    return { x: this.panX + (x - this.origin.x) * this.zoom, y: this.panY + (y - this.origin.y) * this.zoom };
   }
 
   /** True when a pan gesture should consume the pointer event. */

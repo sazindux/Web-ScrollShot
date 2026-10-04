@@ -1,5 +1,5 @@
 # Handoff — Screenshot Extension
-Last updated: 2026-10-04 | Last chat ended after: T7
+Last updated: 2026-10-04 | Last chat ended after: T8
 
 ## Status
 | Task | Title | Status (DONE / IN PROGRESS / PENDING) | Commit |
@@ -12,21 +12,22 @@ Last updated: 2026-10-04 | Last chat ended after: T7
 | T5 | Floating toolbar & fit presets | DONE | |
 | T6 | Scroll-and-stitch capture | DONE | |
 | T7 | Editor shell | DONE | |
-| T8 | Crop tool | PENDING | |
+| T8 | Crop tool | DONE | |
 | T9 | Export suite | PENDING | |
 | T10 | Annotation engine + shapes | PENDING | |
 | T11 | Freehand, highlighter, eraser, delete, polish | PENDING | |
 
 ## NEXT TASK
-T8: Crop tool — implement `editor/crop.js` exporting `initCrop(editor)`; register `editor.hooks.crop = { start, apply, cancel }` and call it from
-`#btn-crop` (editor.js currently shows a "Crop tool coming soon" toast when `editor.hooks.crop` is absent — replace that wiring by importing
-crop.js in editor.js main() after setupView()). Crop box UI lives in `#crop-layer` (div inside `#stage`, image-pixel coordinates; since the
-stage is CSS-scaled, size handles with `transform: scale(1/zoom)` or re-render on `view.onViewChange`). 8 handles + drag-move, numeric inputs
-`#crop-w` / `#crop-h`, `#crop-link` + `#crop-aspect` lock, `#crop-actions` (Apply/Cancel, un-hide while cropping). Crop state = rectangle
-{x,y,width,height} in image px stored on `editor.crop`; applying = push to history (`editor/history.js`: class History(max 100) with
-push/undo/redo + `#btn-undo/#btn-redo` wiring) and visually clip: simplest is to set `view.setImage(croppedCanvas)` from `editor.image`
-drawn with the crop offset AND remember the cumulative offset so annotations (T10) keep image coords; or keep the base full and clip via
-`stage` width/height + canvas translate. Status bar "Canvas: W × H" must reflect the crop. Also pre-fill `#crop-w/#crop-h` with image size on load (`editor.hooks.onImageLoaded`).
+T9: Export suite — create `editor/export.js` exporting `initExport(editor)` and import/call it in editor.js main() after initCrop (editor.js
+already skips its "Export coming soon" toast when `editor.hooks.export` is set — set `editor.hooks.export = {copy, download(fmt), pdf}`).
+Render function: `renderExport(editor)` → offscreen canvas of size `editor.crop.width × height`, drawImage(editor.image, -crop.x, -crop.y),
+then (T10) `editor.hooks.renderAnnotations?.(ctx)` with the same translate. Wire: `#btn-copy`, `#dd-download [data-format=png|jpeg|webp]`,
+`#btn-pdf`, `#dd-export [data-export=copy|png|jpeg|webp|pdf]`, right-panel `.action[data-export=copy|download|pdf]` (download uses
+`#file-format` select value), Ctrl/Cmd+C when nothing selected (`editor.hooks.hasSelection?.()`). Filename `screenshot-YYYYMMDD-HHmmss.<ext>`;
+JPEG fills white first, quality 0.92; toasts "Copied!" / "Downloaded …". Vendor jsPDF UMD into `lib/jspdf.umd.min.js` (download from
+https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js via curl; add `<script src="../lib/jspdf.umd.min.js">` to editor.html before
+the module script) → `new jspdf.jsPDF({unit:'pt', format:[w*0.75, h*0.75], orientation})`, addImage(JPEG 0.92 or PNG), save(). If curl fails,
+write a minimal PDF writer embedding JPEG via DCTDecode.
 
 ## What exists now (file map, 1 line per file)
 - manifest.json — MV3, permissions activeTab/scripting/storage/clipboardWrite, action, command `start-capture` (Alt+Shift+S), module service worker, web_accessible_resources for content/* and shared/*
@@ -53,7 +54,10 @@ drawn with the crop offset AND remember the cumulative offset so annotations (T1
 - editor/canvas-view.js — `class CanvasView({viewport, stage, base, overlay})`: setImage(canvas) (sets both canvases to image px, stage size, fit), fit(), setZoom(z, vx, vy), zoomIn/zoomOut (step list 10%…800%), panBy, toImage(clientX, clientY)/toClient(x,y), isPanTrigger(e), spaceDown; wheel = pan, Ctrl/Cmd+wheel = zoom around pointer, Space+drag / middle-drag = pan, ResizeObserver re-fits while fitMode; `onViewChange({zoom,width,height})`; exports ZOOM_MIN/MAX, ZOOM_PRESETS, isEditable(el)
 - editor/ui.js — `initDropdowns()` (generic .dropdown toggle/outside-click/Esc), `showToast(text, {error, duration})`
 - editor/editor.js — ES module; exports `editor = { view, image, captureId, color, hooks: {} }`; main(): initDropdowns → setupView (status bar, zoom dropdown, +/−/0 and Ctrl+0/+/− keys) → setupPlaceholders (pen size label, palette active state → editor.color + hooks.onColorChange, tool buttons → hooks.setTool or toast, crop/export buttons → toast unless hooks.crop / hooks.export set) → loadCapture (getCapture → composeCapture → view.setImage → hooks.onImageLoaded → deleteCapture; empty/error states in #empty-state)
-- editor/crop.js, export.js, annotations.js, history.js, tools/ — still placeholders
+- editor/history.js — `class History(max=100)` {push(cmd{label,undo,redo}) (cmd must already be applied), undo, redo, clear, canUndo/canRedo, onChange}; `initHistory(editor)` sets `editor.history`, wires #btn-undo/#btn-redo (disabled state) + Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, Ctrl+Y; respects `editor.hooks.beforeHistory()` veto
+- editor/crop.js — `initCrop(editor)`: `editor.crop` {x,y,width,height} in FULL-image px (set to full image in `hooks.onImageLoaded`, inputs pre-filled); crop mode (#btn-crop toggle, key `C`) reveals the full image and edits a draft via viewport-space `#crop-layer > #crop-box` (8 `.crop-handle[data-handle]`, drag-move, drag-on-dim = create new rect, rule-of-thirds grid, `#crop-label` W × H), numeric `#crop-w/#crop-h` (change → draft; Enter → apply), `#crop-link`/`#crop-aspect` lock ratio (resize + inputs + create honour it), `#crop-apply`/Enter/dblclick apply → `editor.history.push` + `view.setCropRect`; `#crop-cancel`/Esc cancel. Hooks: `editor.hooks.crop = {start, apply, cancel, toggle, isActive}`, `hooks.onCropStart` (return false to veto), `hooks.onCropEnd`, `hooks.onCropChange(rect)`. Exports pure `resizeRect(start, handle, pt, ratio, W, H)`
+- editor/canvas-view.js additions — `imageWidth/imageHeight` (full base), `width/height` = visible crop size, `origin` {x,y}; `setCropRect(rect)` shrinks the stage to the rect and offsets both canvases by `-rect.x/-rect.y` (canvas pixels untouched → tool coords stay full-image px); `toImage/toClient` account for origin; new `toViewport(x,y)`; `clearOverlay` clears full image
+- editor/export.js, annotations.js, tools/ — still placeholders
 - lib/README.js — jsPDF to be vendored in T9
 - icons/16,32,48,128.png — generated indigo camera placeholder icons
 - README.md — load-unpacked instructions, shortcuts
@@ -63,6 +67,12 @@ drawn with the crop offset AND remember the cumulative offset so annotations (T1
 - Frames are passed content→background as PNG data URLs inside `SAVE_CAPTURE` (one message per capture; background converts to Blobs for IndexedDB). If this proves too large for very long pages, switch to one `SAVE_FRAME` message per frame.
 - `downloads` permission NOT requested; editor uses `<a download>` blob links.
 - Restricted URL detection in `isRestrictedUrl()` also treats `*.pdf` URLs as restricted; `file://` failures are caught by the executeScript try/catch and show the badge.
+
+- Crop is NON-destructive: `editor.image` is never re-rendered; the visible region is `editor.crop` applied via `view.setCropRect`. Export (T9) must draw `editor.image` at `(-crop.x, -crop.y)` onto a crop-sized canvas. Annotations (T10) keep full-image coordinates and are clipped by the stage overflow + export canvas size.
+- Crop UI is drawn in viewport space (unscaled) rather than inside the CSS-scaled stage so handles/labels stay crisp; `view.onViewChange` re-positions it.
+- Undo/redo while a crop edit is in progress first cancels the edit (`hooks.beforeHistory`).
+- `[hidden] { display: none !important; }` added to editor.css — `.empty-state { display:grid }` previously overrode the hidden attribute and intercepted pointer events.
+- Headless testing: Playwright (python) + chromium can be installed in the sandbox (`pip install playwright && python3 -m playwright install chromium && sudo python3 -m playwright install-deps chromium`); serve the repo with `python3 -m http.server 8765` and open `editor/editor.html`, then seed `editor.image` via `import('./editor.js')`.
 
 ## Message/API contracts
 - `MSG.PING` → `{ok:true}`; `MSG.TOGGLE_OVERLAY`; `MSG.CAPTURE_VISIBLE` → `{dataUrl}|{error}`;
@@ -76,6 +86,13 @@ drawn with the crop offset AND remember the cumulative offset so annotations (T1
 - Editor headless test (seeded IndexedDB record, 1200×3000 image) passed: fit → 25%, status bar/zoom dropdown/keys OK. Not yet verified in a real Chrome extension context by the user.
 
 ## Manual test steps for the user (for the last finished task)
+1. Reload extension; capture anything; in the editor press **Crop** (or key `C`). The whole image is shown with a dimmed overlay and a blue crop box with 8 handles + rule-of-thirds grid; Apply/Cancel appear in the right panel; Width/Height inputs show the box size live.
+2. Drag the handles (corners + edges), drag inside to move, drag on the dimmed area to draw a fresh box. The label below the box shows W × H in true image pixels. Zoom (Ctrl+wheel / +−) while cropping: box stays aligned.
+3. Type Width 600 / Height 400 → box resizes anchored at its top-left. Toggle "Keep aspect ratio" (or the link icon) → further resizes/inputs keep the ratio.
+4. Apply (button, Enter, or double-click the box) → workspace shows only the cropped region, status bar "Canvas: 600 × 400", toast "Cropped to …". Undo (Ctrl+Z / button) restores the previous crop; Redo re-applies. Cancel/Esc discards the draft.
+5. Pixel check: crop a region whose edge sits exactly on a colour boundary; the cropped result should start exactly on that boundary.
+
+Previous (T7):
 1. Reload extension; capture anything (single or Full Page). Editor tab opens with the new layout: top bar (ScrollShot logo, Crop, Copy, Download ▾, Export PDF, indigo Export ▾), gray dotted workspace with the image centered and fitted, right panel (Crop Settings / Quick Actions / File Format), bottom annotation toolbar.
 2. Bottom-left status shows "Canvas: W × H" (true image pixels, e.g. 2× on a Retina screen) and a zoom % button; click it → Fit / 25%…400% presets. +/− buttons and keys `+ − 0`, `Ctrl/Cmd + wheel` zoom around the pointer; wheel pans; Space+drag or middle-mouse drag pans. Window resize re-fits while in Fit mode.
 3. Dropdowns (Download, Export, Shapes, zoom) open/close on click, outside click and Esc. Not-yet-built actions show a dark toast "… coming soon".
