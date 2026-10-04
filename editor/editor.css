@@ -116,7 +116,7 @@ button.status-item:hover { background: var(--bg); color: var(--text); }
 .select { width: 100%; height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: 9px; background: #FAFAFC; font: inherit; color: var(--text); }
 
 /* ───────── Bottom annotation toolbar ───────── */
-.annobar { display: flex; align-items: center; gap: 6px; height: 56px; padding: 0 14px; background: var(--surface); border-top: 1px solid var(--border); flex: none; overflow-x: auto; }
+.annobar { display: flex; align-items: center; gap: 6px; height: 56px; padding: 0 14px; background: var(--surface); border-top: 1px solid var(--border); flex: none; position: relative; z-index: 20; }
 .tool { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border: 1px solid transparent; border-radius: 9px; background: none; font-weight: 500; color: var(--text); white-space: nowrap; }
 .tool:hover { background: var(--bg); }
 .tool.active { background: var(--primary-soft); color: var(--primary); border-color: rgba(91,76,240,.35); }

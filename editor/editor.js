@@ -9,6 +9,7 @@ import { initDropdowns, showToast } from './ui.js';
 import { initHistory } from './history.js';
 import { initCrop } from './crop.js';
 import { initExport } from './export.js';
+import { initAnnotations } from './annotations.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -105,7 +106,7 @@ function setupPlaceholders() {
   });
   editor.color = '#2F6BFF';
 
-  // Tool buttons: toggle "active" look; real tools registered in T10/T11.
+  // Tool buttons → annotations.js setTool (registered in initAnnotations).
   document.querySelectorAll('.annobar [data-tool]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const tool = btn.dataset.tool;
@@ -159,6 +160,7 @@ async function main() {
   initCrop(editor);
   initExport(editor);
   setupPlaceholders();
+  initAnnotations(editor);
   $('#empty-state').hidden = false;
   $('#empty-title').textContent = 'Loading capture…';
   await loadCapture(view);

@@ -1,5 +1,5 @@
 # Handoff — Screenshot Extension
-Last updated: 2026-10-04 | Last chat ended after: T9
+Last updated: 2026-10-04 | Last chat ended after: T10
 
 ## Status
 | Task | Title | Status (DONE / IN PROGRESS / PENDING) | Commit |
@@ -14,22 +14,25 @@ Last updated: 2026-10-04 | Last chat ended after: T9
 | T7 | Editor shell | DONE | |
 | T8 | Crop tool | DONE | |
 | T9 | Export suite | DONE | |
-| T10 | Annotation engine + shapes | PENDING | |
+| T10 | Annotation engine + shapes | DONE | |
 | T11 | Freehand, highlighter, eraser, delete, polish | PENDING | |
 
 ## NEXT TASK
-T10: Annotation engine + shapes — create `editor/annotations.js` exporting `initAnnotations(editor)`; import/call it in editor.js main()
-after initExport (editor.js tool buttons call `editor.hooks.setTool(tool)` when set; tools: rect/ellipse/arrow/line from `#dd-shapes
-[data-tool]`, pen/highlighter/eraser buttons — pen/highlighter/eraser are T11 but register the names now). Model: `editor.annotations = []`
-of objects {id, type, points|rect, color, size, opacity}; coordinates in FULL-image px (crop-independent). Render into `view.overlayCtx`
-(overlay canvas is full-image sized and already offset by the crop) via a `requestRender()` rAF loop; also implement
-`editor.hooks.renderAnnotations(ctx)` (export.js calls it with ctx already translated to full-image coords) and
-`editor.hooks.hasSelection()` (export.js uses it for Ctrl+C). Pointer events: listen on `#viewport` (bail if `view.isPanTrigger(e)` /
-`view.spaceDown` / crop active `editor.hooks.crop.isActive()`), convert with `view.toImage`. Selection: click selects top-most object
-hit; draw handles on the overlay; move/resize with history commands; `#btn-delete` + Delete/Backspace remove selected. Color from
-`editor.color` / `hooks.onColorChange`; size from `#pen-size`. Push History commands {undo, redo} for add/delete/move/resize; set
-`hooks.onCropStart` to deselect. Shapes: Rectangle, Circle (ellipse), Arrow (line + filled head), Line; stroke width = pen size,
-opacity 1. Create `editor/tools/shapes.js` with the per-type draw/hit-test/bounds functions to keep annotations.js < 400 lines.
+T11: Freehand, highlighter, eraser, delete, polish. The engine in `editor/annotations.js` ALREADY implements basic versions of
+pen (`type:'pen'`, smoothed quadratic polyline in shapes.js `drawPolyline`), highlighter (`hl-rect` filled / `hl-pen` stroke, yellow
+#FACC15 default when palette colour is the default blue, opacity .35, `multiply`), object eraser (click + drag-erase via `deleteObject`)
+and delete (#btn-delete, Delete/Backspace). What REMAINS for T11:
+1. Highlighter mode switch UI (rect vs freehand): add a small dropup/toggle next to the Highlighter button (e.g. make it a `.dropdown
+   .dropup` like #dd-shapes with items "Area" / "Freehand") → `editor.hooks.setHighlightMode('rect'|'pen')`; show the current mode in
+   the button label.
+2. Freehand smoothing/thinning: optionally decimate points (e.g. drop points closer than 1.5 screen px — already done on input) and apply
+   a light moving-average before commit in `onUp` for `pen`/`hl-pen`.
+3. Eraser hover feedback (e.g. outline the object under the pointer in red before clicking) — optional polish.
+4. Empty/error states: tool buttons should toast "Load a capture first" when `!view.imageWidth` (currently they silently activate).
+5. Performance on large images: `render()` clears/redraws the full overlay each frame; for >30 MP images consider drawing only when
+   objects change (already rAF-batched) and skipping `drawSelection` while dragging strokes. Verify freehand on a 16k-tall stitched image.
+6. Keyboard shortcut cheat-sheet in README; final manual test checklist (all features end-to-end) in README + handoff.
+7. Update `editor/tools/README.js` (remove placeholder) and the file map below.
 
 ## What exists now (file map, 1 line per file)
 - manifest.json — MV3, permissions activeTab/scripting/storage/clipboardWrite, action, command `start-capture` (Alt+Shift+S), module service worker, web_accessible_resources for content/* and shared/*
@@ -61,7 +64,8 @@ opacity 1. Create `editor/tools/shapes.js` with the per-type draw/hit-test/bound
 - editor/canvas-view.js additions — `imageWidth/imageHeight` (full base), `width/height` = visible crop size, `origin` {x,y}; `setCropRect(rect)` shrinks the stage to the rect and offsets both canvases by `-rect.x/-rect.y` (canvas pixels untouched → tool coords stay full-image px); `toImage/toClient` account for origin; new `toViewport(x,y)`; `clearOverlay` clears full image
 - editor/export.js — `initExport(editor)` → `editor.hooks.export = {copy, download(fmt), pdf, render}`; `renderExport(editor,{background})` = offscreen canvas of crop size, drawImage(base, -crop.x,-crop.y) then `hooks.renderAnnotations?.(ctx)` (ctx translated to full-image coords); `FORMATS` png/jpeg(white bg, q .92)/webp(q .92); `timestampName(ext)` → `screenshot-YYYYMMDD-HHmmss.ext`; `downloadBlob` via `<a download>`; copy = ClipboardItem image/png; PDF = vendored jsPDF (`globalThis.jspdf.jsPDF`, unit pt, page = px×0.75, PNG for <1.5 MP else JPEG .92, clamps to 14400 pt with notice). Wires #btn-copy, #btn-pdf, [data-format], [data-export] (copy/png/jpeg/webp/pdf/download→#file-format), Ctrl/Cmd+C when `!hooks.hasSelection?.()` and no text selection. Toasts "Copied!" / "Downloaded PNG" / "PDF exported"; errors as red toasts. Busy guard (`body.exporting`).
 - lib/jspdf.umd.min.js — jsPDF 2.5.2 UMD (MIT), loaded via plain `<script>` in editor.html before the module script; verified free of eval/new Function (MV3 CSP-safe)
-- editor/annotations.js, tools/ — still placeholders
+- editor/tools/shapes.js — pure geometry/drawing per type: `SHAPE_TYPES` (rect/ellipse/arrow/line), `BOX_TYPES`, `STROKE_TYPES` (pen/hl-pen), `HIGHLIGHT_TYPES` (hl-rect/hl-pen, drawn with `multiply`); `boundsOf`, `outerBounds`, `drawShape(ctx,obj)` (arrow = shaft + filled head `arrowHeadLength(size)=max(10,size*3.2)`; polylines smoothed via quadratic midpoints), `hitTest(obj, pt, tol)`, `translateShape`, `handlesOf` (8 box handles or p0/p1 for line/arrow), `HANDLE_CURSORS`, `resizeShape(obj, handle, orig, pt)` (polylines scaled into new bounds, flips allowed), `cloneShape`
+- editor/annotations.js — `initAnnotations(editor)`: `editor.annotations=[]` of {id,type,points,color,size,opacity} in full-image px; pointer gestures on `#viewport` (draw / select / move / resize / erase; bails on pan trigger, Space, crop active); rAF-batched `requestRender()` → clears overlay, draws objects + draft + dashed selection with screen-constant handles (sized by 1/zoom); Shift constrains squares/45° lines; tiny drags (<3 screen px) discarded; all mutations push History cmds (add/delete/move/resize/colour/size/clear); clicking the active tool again returns to Select; keys V/R/O/A/L/P/H/E select tools, Esc → cancel drag → Select → deselect, Delete/Backspace delete selected; pen-size slider & palette change the SELECTED object (undoable). Hooks set: `setTool, getTool, setHighlightMode, getHighlightMode, renderAnnotations(ctx), hasSelection, requestRender, clearAnnotations`; chains onColorChange / onCropStart (deselect) / onImageLoaded (reset) / view.onViewChange (re-render handles on zoom)
 - lib/README.js — jsPDF to be vendored in T9
 - icons/16,32,48,128.png — generated indigo camera placeholder icons
 - README.md — load-unpacked instructions, shortcuts
@@ -77,6 +81,9 @@ opacity 1. Create `editor/tools/shapes.js` with the per-type draw/hit-test/bound
 - Undo/redo while a crop edit is in progress first cancels the edit (`hooks.beforeHistory`).
 - `[hidden] { display: none !important; }` added to editor.css — `.empty-state { display:grid }` previously overrode the hidden attribute and intercepted pointer events.
 - JPEG/WEBP quality fixed at 0.92 (no quality slider UI in the mockup); PDF embeds PNG for small images (<1.5 MP) and JPEG otherwise to keep file size sane.
+- Annotation selection handles are drawn ON the overlay canvas (scaled by 1/zoom so they look constant-size) rather than as DOM elements — simpler, and they never appear in exports because export only calls `renderAnnotations` (objects only).
+- Tool stays active after drawing a shape (draw several in a row); click the tool again, press Esc or `V` to go back to Select.
+- `.annobar` lost `overflow-x:auto` (it clipped the Shapes dropup and made its items unclickable) and got `position:relative; z-index:20`.
 - Headless testing: Playwright (python) + chromium can be installed in the sandbox (`pip install playwright && python3 -m playwright install chromium && sudo python3 -m playwright install-deps chromium`); serve the repo with `python3 -m http.server 8765` and open `editor/editor.html`, then seed `editor.image` via `import('./editor.js')`.
 
 ## Message/API contracts
@@ -91,6 +98,13 @@ opacity 1. Create `editor/tools/shapes.js` with the per-type draw/hit-test/bound
 - Editor headless test (seeded IndexedDB record, 1200×3000 image) passed: fit → 25%, status bar/zoom dropdown/keys OK. Not yet verified in a real Chrome extension context by the user.
 
 ## Manual test steps for the user (for the last finished task)
+1. Reload extension; capture anything. In the editor open **Shapes ▾** → Rectangle (button label becomes "Rectangle" and highlights). Drag on the image → blue 4 px rectangle appears live while dragging. Draw a Circle, Arrow (filled head at the end point) and Line the same way; hold Shift for a square / circle / 45° line. Zoom in/out — shapes stay glued to the image.
+2. Click Shapes/active tool again (or press Esc / `V`) → Select mode. Click a shape → dashed blue outline + white handles (8 for boxes, 2 endpoints for line/arrow). Drag inside to move; drag a handle to resize (corners/edges; endpoints for lines). Click empty space → deselect. Click where shapes overlap → top-most is picked.
+3. With a shape selected, pick another palette colour or move the Pen Size slider → the shape updates. **Delete** button or Delete/Backspace removes it. Undo/Redo (buttons, Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y) step through add, move, resize, colour, size and delete in order; Undo also crosses crop operations.
+4. Copy / Download / Export PDF → output contains the shapes exactly as previewed (at full resolution; handles never appear). Crop then export → shapes clipped to the crop. Ctrl+C with a shape selected does nothing (no accidental image copy); with nothing selected it copies the image.
+5. Early T11 previews already wired: Freehand (`P`) draws a smoothed stroke, Highlighter (`H`) draws a yellow translucent area, Eraser (`E`) deletes the object under the pointer (click or drag across).
+
+Previous (T9):
 1. Reload extension; capture anything; optionally crop. **Copy** (top bar, Quick Actions, Export ▾ → Copy, or Ctrl/Cmd+C) → toast "Copied!"; paste into any image-accepting app → exactly the cropped preview at full resolution.
 2. **Download ▾** → PNG / JPG / WEBP each save `screenshot-YYYYMMDD-HHmmss.<ext>` (JPG has a white background where the capture was transparent). Quick Actions → Download uses the "File Format" select.
 3. **Export PDF** (top bar / Quick Actions / Export ▾) → one-page PDF whose page equals the image size (px × 0.75 pt); opens in Chrome's PDF viewer with the image filling the page.
