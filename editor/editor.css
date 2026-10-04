@@ -1,0 +1,2 @@
+:root { --primary: #5B4CF0; --bg: #F3F4F8; --text: #1E293B; }
+html, body { margin: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); }

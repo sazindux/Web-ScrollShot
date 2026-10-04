@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "Capture More. Edit Better.",
+  "short_name": "ScrollShot",
+  "version": "0.1.0",
+  "description": "Full-featured web screenshot tool: area, full page, scroll-and-stitch capture with a powerful annotation editor.",
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "permissions": ["activeTab", "scripting", "storage", "clipboardWrite"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Capture screenshot (Alt+Shift+S)",
+    "default_icon": {
+      "16": "icons/16.png",
+      "32": "icons/32.png",
+      "48": "icons/48.png",
+      "128": "icons/128.png"
+    }
+  },
+  "commands": {
+    "start-capture": {
+      "suggested_key": {
+        "default": "Alt+Shift+S",
+        "mac": "Alt+Shift+S"
+      },
+      "description": "Start screenshot capture"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["content/*.js", "shared/*.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
