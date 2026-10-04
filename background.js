@@ -1,7 +1,7 @@
 // Service worker: activation, content-script injection, captureVisibleTab,
 // IndexedDB storage of captures and opening the editor tab.
 import { MSG, CAPTURE_MIN_INTERVAL_MS, CAPTURE_RETENTION_MS, makeCaptureId } from './shared/messages.js';
-import { putCapture, pruneCaptures } from './shared/db.js';
+import { putCapture, putFrame, deleteCapture, pruneCaptures } from './shared/db.js';
 
 const CONTENT_SCRIPT = 'content/content.js';
 
@@ -127,6 +127,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       pruneCaptures(CAPTURE_RETENTION_MS).catch(() => {});
       sendResponse({ id: record.id });
     })().catch((err) => sendResponse({ error: String(err?.message || err) }));
+    return true;
+  }
+
+  if (msg.type === MSG.SAVE_FRAME) {
+    (async () => {
+      const { id, index, dataUrl, ...meta } = msg;
+      const blob = await (await fetch(dataUrl)).blob();
+      await putFrame({ captureId: id, index, blob, ...meta });
+      sendResponse({ ok: true });
+    })().catch((err) => sendResponse({ error: String(err?.message || err) }));
+    return true;
+  }
+
+  if (msg.type === MSG.DELETE_CAPTURE) {
+    deleteCapture(msg.id)
+      .then(() => sendResponse({ ok: true }))
+      .catch((err) => sendResponse({ error: String(err?.message || err) }));
     return true;
   }
 

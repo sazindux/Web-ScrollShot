@@ -82,15 +82,9 @@ export async function captureSelection(api) {
     if (fits) {
       record = await captureSingle(api, selection);
     } else {
-      const stitch = await import(chrome.runtime.getURL('content/stitch.js')).catch(() => null);
-      if (stitch?.captureStitched) {
-        record = await stitch.captureStitched(api, selection);
-        if (!record) return; // cancelled
-      } else {
-        // Fallback until T6: clamp to the visible part of the viewport.
-        api.showToast('Large captures arrive in a later version — capturing visible part');
-        record = await captureSingle(api, clampToViewport(selection));
-      }
+      const stitch = await import(chrome.runtime.getURL('content/stitch.js'));
+      record = await stitch.captureStitched(api, selection);
+      if (!record) return; // cancelled by the user
     }
 
     const { id } = await sendMessage({ type: MSG.SAVE_CAPTURE, capture: record });
@@ -102,14 +96,6 @@ export async function captureSelection(api) {
   } finally {
     busy = false;
   }
-}
-
-function clampToViewport(sel) {
-  const x1 = Math.max(sel.x, window.scrollX);
-  const y1 = Math.max(sel.y, window.scrollY);
-  const x2 = Math.min(sel.x + sel.width, window.scrollX + window.innerWidth);
-  const y2 = Math.min(sel.y + sel.height, window.scrollY + window.innerHeight);
-  return { x: x1, y: y1, width: Math.max(1, x2 - x1), height: Math.max(1, y2 - y1) };
 }
 
 async function captureSingle(api, selection) {

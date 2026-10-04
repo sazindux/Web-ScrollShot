@@ -47,10 +47,16 @@ export async function openOverlay() {
   const toast = el('div', 'toast');
   root.appendChild(toast);
 
+  // Progress card lives outside .root so hideUi() can hide the overlay while
+  // progress stays visible between frames (it is hidden explicitly during grabs).
+  const progress = el('div', 'progress hidden');
+  progress.innerHTML = '<div class="progress-title">Capturing…</div><div class="progress-bar"><div class="progress-fill"></div></div><div class="progress-sub">Press <kbd>Esc</kbd> to cancel</div>';
+
   shadow.appendChild(root);
+  shadow.appendChild(progress);
   (document.body || document.documentElement).appendChild(host);
 
-  state = { host, shadow, root, panels, hint, toast, selection: null, toastTimer: 0 };
+  state = { host, shadow, root, panels, hint, toast, progress, selection: null, toastTimer: 0 };
 
   state.onKey = (e) => {
     if (e.key === 'Escape') {
@@ -163,10 +169,29 @@ function setRect(node, x, y, w, h) {
 // ---- UI visibility (used while capturing) ------------------------------
 
 export function hideUi() {
-  state?.root.classList.add('hidden');
+  if (!state) return;
+  state.root.classList.add('hidden');
+  state.progress.classList.add('hidden');
 }
 export function showUi() {
-  state?.root.classList.remove('hidden');
+  if (!state) return;
+  state.root.classList.remove('hidden');
+  if (state.progressActive) state.progress.classList.remove('hidden');
+}
+
+/** Show/update the multi-frame capture progress card. ratio 0..1 */
+export function showProgress(text, ratio) {
+  if (!state) return;
+  state.progressActive = true;
+  state.progress.classList.remove('hidden');
+  state.progress.querySelector('.progress-title').textContent = text;
+  const fill = state.progress.querySelector('.progress-fill');
+  fill.style.width = `${Math.round(Math.max(0, Math.min(1, ratio ?? 0)) * 100)}%`;
+}
+export function hideProgress() {
+  if (!state) return;
+  state.progressActive = false;
+  state.progress.classList.add('hidden');
 }
 
 export function showToast(text, ms = 1800) {
@@ -190,6 +215,8 @@ export const api = {
   getSelection,
   hideUi,
   showUi,
+  showProgress,
+  hideProgress,
   showToast,
   relayout: layoutPanels,
   /** Register a cleanup callback run when the overlay closes. */

@@ -193,3 +193,24 @@
 .tb-capture:hover { background: linear-gradient(135deg, #4F41E0, #5B4CF0); color: #fff; }
 .tb-capture:active { background: #4538CC; }
 @media (max-width: 760px) { .tb-btn span { display: none; } .tb-capture span { display: inline; } }
+
+/* Multi-frame capture progress (T6) */
+.progress {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 280px;
+  padding: 18px 20px;
+  background: rgba(255, 255, 255, 0.97);
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.3);
+  pointer-events: none;
+  text-align: center;
+}
+.progress.hidden { display: none; }
+.progress-title { font-size: 14px; font-weight: 600; color: #1E293B; margin-bottom: 10px; }
+.progress-bar { height: 6px; border-radius: 999px; background: #EEF0FF; overflow: hidden; }
+.progress-fill { height: 100%; width: 0; background: linear-gradient(90deg, #5B4CF0, #8B7CFF); transition: width .15s ease; }
+.progress-sub { margin-top: 10px; font-size: 12px; color: #64748B; }
+.progress-sub kbd { font: inherit; font-weight: 600; background: #EEF0FF; color: #5B4CF0; border-radius: 5px; padding: 0 6px; }

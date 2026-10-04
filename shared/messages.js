@@ -8,7 +8,9 @@ export const MSG = Object.freeze({
 
   // content -> background
   CAPTURE_VISIBLE: 'ss:capture-visible',   // request one captureVisibleTab -> { dataUrl } | { error }
-  SAVE_CAPTURE: 'ss:save-capture',         // { capture } stored into IndexedDB -> { id }
+  SAVE_CAPTURE: 'ss:save-capture',         // { capture } metadata (+ optional inline frames as dataUrls) -> { id }
+  SAVE_FRAME: 'ss:save-frame',             // { id, index, dataUrl, scrollX, scrollY, width, height } -> { ok }
+  DELETE_CAPTURE: 'ss:delete-capture',     // { id } remove a cancelled capture -> { ok }
   OPEN_EDITOR: 'ss:open-editor',           // { id } opens editor tab
   OVERLAY_CLOSED: 'ss:overlay-closed',     // overlay was dismissed (informational)
 });

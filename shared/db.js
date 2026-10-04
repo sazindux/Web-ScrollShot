@@ -1,5 +1,7 @@
 // Minimal IndexedDB helper used by background.js and the editor page.
-// Store: "captures", keyPath: "id"
+// Store "captures" (keyPath "id") holds metadata; store "frames" (keyPath "key" = `${captureId}:${index}`,
+// index "captureId") holds one record per viewport frame so large captures never go through a single message.
+// getCapture() joins them back together (frames sorted by index).
 // Record shape:
 // {
 //   id: string,
@@ -14,8 +16,9 @@
 // }
 
 const DB_NAME = 'scrollshot';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 export const STORE_CAPTURES = 'captures';
+export const STORE_FRAMES = 'frames';
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -25,6 +28,10 @@ function openDb() {
       if (!db.objectStoreNames.contains(STORE_CAPTURES)) {
         const store = db.createObjectStore(STORE_CAPTURES, { keyPath: 'id' });
         store.createIndex('createdAt', 'createdAt', { unique: false });
+      }
+      if (!db.objectStoreNames.contains(STORE_FRAMES)) {
+        const fs = db.createObjectStore(STORE_FRAMES, { keyPath: 'key' });
+        fs.createIndex('captureId', 'captureId', { unique: false });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -52,27 +59,55 @@ export async function putCapture(record) {
   }
 }
 
-export async function getCapture(id) {
+/** Store one frame: { captureId, index, blob, scrollX, scrollY, width, height } */
+export async function putFrame(frame) {
   const db = await openDb();
   try {
-    const tx = db.transaction(STORE_CAPTURES, 'readonly');
-    const req = tx.objectStore(STORE_CAPTURES).get(id);
-    const result = await new Promise((resolve, reject) => {
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => reject(req.error);
-    });
+    const tx = db.transaction(STORE_FRAMES, 'readwrite');
+    tx.objectStore(STORE_FRAMES).put({ ...frame, key: `${frame.captureId}:${frame.index}` });
     await txDone(tx);
-    return result;
   } finally {
     db.close();
   }
 }
 
+function reqToPromise(req) {
+  return new Promise((resolve, reject) => {
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/** Returns the capture record with `frames` populated (inline frames + frames store), or null. */
+export async function getCapture(id) {
+  const db = await openDb();
+  try {
+    const tx = db.transaction([STORE_CAPTURES, STORE_FRAMES], 'readonly');
+    const record = (await reqToPromise(tx.objectStore(STORE_CAPTURES).get(id))) || null;
+    if (record) {
+      const stored = await reqToPromise(tx.objectStore(STORE_FRAMES).index('captureId').getAll(id));
+      stored.sort((a, b) => a.index - b.index);
+      record.frames = [...(record.frames || []), ...stored];
+    }
+    await txDone(tx);
+    return record;
+  } finally {
+    db.close();
+  }
+}
+
+async function deleteFramesIn(tx, captureId) {
+  const index = tx.objectStore(STORE_FRAMES).index('captureId');
+  const keys = await reqToPromise(index.getAllKeys(captureId));
+  for (const k of keys) tx.objectStore(STORE_FRAMES).delete(k);
+}
+
 export async function deleteCapture(id) {
   const db = await openDb();
   try {
-    const tx = db.transaction(STORE_CAPTURES, 'readwrite');
+    const tx = db.transaction([STORE_CAPTURES, STORE_FRAMES], 'readwrite');
     tx.objectStore(STORE_CAPTURES).delete(id);
+    await deleteFramesIn(tx, id);
     await txDone(tx);
   } finally {
     db.close();
@@ -84,23 +119,16 @@ export async function pruneCaptures(maxAgeMs) {
   const cutoff = Date.now() - maxAgeMs;
   const db = await openDb();
   try {
-    const tx = db.transaction(STORE_CAPTURES, 'readwrite');
+    const tx = db.transaction([STORE_CAPTURES, STORE_FRAMES], 'readwrite');
     const index = tx.objectStore(STORE_CAPTURES).index('createdAt');
     const range = IDBKeyRange.upperBound(cutoff);
-    let count = 0;
-    await new Promise((resolve, reject) => {
-      const req = index.openCursor(range);
-      req.onsuccess = () => {
-        const cursor = req.result;
-        if (!cursor) return resolve();
-        cursor.delete();
-        count++;
-        cursor.continue();
-      };
-      req.onerror = () => reject(req.error);
-    });
+    const oldIds = (await reqToPromise(index.getAll(range))).map((r) => r.id);
+    for (const id of oldIds) {
+      tx.objectStore(STORE_CAPTURES).delete(id);
+      await deleteFramesIn(tx, id);
+    }
     await txDone(tx);
-    return count;
+    return oldIds.length;
   } finally {
     db.close();
   }

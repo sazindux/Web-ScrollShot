@@ -1,5 +1,5 @@
 # Handoff — Screenshot Extension
-Last updated: 2026-10-04 | Last chat ended after: T5
+Last updated: 2026-10-04 | Last chat ended after: T6
 
 ## Status
 | Task | Title | Status (DONE / IN PROGRESS / PENDING) | Commit |
@@ -10,7 +10,7 @@ Last updated: 2026-10-04 | Last chat ended after: T5
 | T3 | Single-viewport capture + editor stub | DONE | |
 | T4 | Edge auto-scroll | DONE | |
 | T5 | Floating toolbar & fit presets | DONE | |
-| T6 | Scroll-and-stitch capture | PENDING | |
+| T6 | Scroll-and-stitch capture | DONE | |
 | T7 | Editor shell | PENDING | |
 | T8 | Crop tool | PENDING | |
 | T9 | Export suite | PENDING | |
@@ -18,20 +18,14 @@ Last updated: 2026-10-04 | Last chat ended after: T5
 | T11 | Freehand, highlighter, eraser, delete, polish | PENDING | |
 
 ## NEXT TASK
-T6: Scroll-and-stitch capture — create `content/stitch.js` exporting `async captureStitched(api, selection)` → record
-(same shape as capture.js `captureSingle`, kind:'stitched', frames[] each {dataUrl, scrollX, scrollY, width, height}) or `null` if cancelled.
-capture.js already dynamic-imports it when selection is larger than the viewport. Use `grabFrame(api)` from capture.js
-(hides UI + 2 rAF + CAPTURE_VISIBLE; background enforces 600 ms spacing — still add ~150 ms settle after each scrollTo).
-Steps: save scrollX/Y + html/body overflow; hide scrollbars (`document.documentElement.style.overflow='hidden'` may change
-layout — prefer `scrollbar-width:none` + `::-webkit-scrollbar{display:none}` style tag); iterate columns×rows over the selection
-in viewport-sized steps (last step clamps to doc end → overlapping frame, compose.js handles overlap since it draws by document
-offset); after first frame, neutralise fixed/sticky: walk `document.querySelectorAll('*')`, getComputedStyle position fixed/sticky →
-set `visibility:hidden` (fixed) / `position:static` (sticky) inline, remember originals, restore in finally. Progress indicator:
-a `.progress` card inside api.root — but UI is hidden during grabs, so render progress in a separate non-hidden element
-(add `api.showProgress(text)`/`api.hideProgress()` in overlay.js using a node outside `.root` in the shadow, and hide it too in
-grabFrame — simpler: progress element outside .root, toggled hidden inside grabFrame via api.hideUi/showUi which should hide
-it as well; show it between grabs). Esc: `api.setCancelHandler(() => cancelled = true)` — check flag each iteration, restore and
-return null; clear handler in finally. Canvas-limit scaling already in editor/compose.js (notice shown).
+T7: Editor shell — rewrite `editor/editor.html` + `editor.css` to the mockup layout: top bar (logo, Crop, Copy, Download ▾ PNG/JPG/WEBP,
+Export PDF, primary Export ▾), center `.workspace` (light gray) containing `canvas-view`, right panel "Crop Settings" (Width/Height inputs,
+link icon + "Keep aspect ratio" toggle), "Quick Actions" (Copy, Download, Export PDF), "File Format" select; bottom-left status
+"Canvas: W × H" + zoom % dropdown; bottom annotation toolbar placeholders (Shapes ▾, Freehand, Highlighter, Eraser, Delete, Undo, Redo,
+Pen Size slider "N px", color palette + custom picker). Implement `editor/canvas-view.js`: class CanvasView(container) holding base
+canvas + overlay canvas, zoom (Fit, 25–400%, Ctrl/Cmd+wheel around pointer, +/-/0 keys), pan (Space+drag / middle mouse), CSS
+transform-based rendering (`transform: translate() scale()`), `toImage(clientX, clientY)` converts to image px, `onViewChange` callback for status bar.
+Keep editor.js flow: getCapture → composeCapture → set base image → deleteCapture. Buttons wire later (T8/T9/T10).
 
 ## What exists now (file map, 1 line per file)
 - manifest.json — MV3, permissions activeTab/scripting/storage/clipboardWrite, action, command `start-capture` (Alt+Shift+S), module service worker, web_accessible_resources for content/* and shared/*
@@ -44,6 +38,10 @@ return null; clear handler in finally. Canvas-limit scaling already in editor/co
 - content/selection.js — `attachSelection(api)`: builds `.selection` + 8 handles + size label inside api.root; pointerdown on root → create/move/resize drag (document coords, min 10×10, clamped to docSize()); `applyDrag()` re-derives pointer doc position from lastClient+scroll so wheel/autoscroll grow the selection; calls optional `createAutoScroll(api)` from autoscroll.js (T4) with start(cb)/update(cx,cy)/stop(); exports `render, docSize, selectionApi`
 - content/capture.js — `captureSelection(api)`: if selection fits viewport → `captureSingle` (scrolls selection into view if needed, restores scroll) else dynamic-import `content/stitch.js` `captureStitched(api, sel)` (T6; falls back to visible part); `grabFrame(api)` = hideUi → 2 rAF → CAPTURE_VISIBLE → {dataUrl, scrollX, scrollY, width, height}; then SAVE_CAPTURE → OPEN_EDITOR → api.close(). Record: {kind, dpr, viewport, document, selection, pageUrl, pageTitle, frames[]}
 - content/overlay.js additions — imports capture.js and registers `api.setCaptureHandler`; `api.capture()`, `api.setCancelHandler(fn)` (Esc calls it instead of closing when set — for T6); tries `toolbar.js attachToolbar(api)` (T5)
+- content/stitch.js — `captureStitched(api, selection)` → record {id, kind:'stitched', dpr, viewport, document, selection, frames:[], frameCount} or null if cancelled. Hides scrollbars (style tag + scroll-behavior auto), computes scroll step positions (`steps()`, last clamped to doc end → overlap), scrollTo → 150 ms settle → `grabFrame` → SAVE_FRAME per frame (streamed; background stores Blob in `frames` store); after 1st frame `neutraliseFixed()` (fixed → visibility hidden !important, sticky → position static); Esc via `api.setCancelHandler` → DELETE_CAPTURE + toast; finally restores styles, scrollbars, scroll position, progress hidden
+- content/overlay.js additions — `.progress` card outside `.root` (hidden by hideUi, re-shown by showUi while active); `api.showProgress(text, ratio)` / `api.hideProgress()`
+- shared/db.js — DB v2: store `frames` (key `${captureId}:${index}`, index captureId); `putFrame`, `getCapture` joins inline+stored frames sorted by index, `deleteCapture`/`pruneCaptures` also remove frames
+- background.js additions — SAVE_FRAME (dataUrl→Blob→putFrame), DELETE_CAPTURE; SAVE_CAPTURE honours a provided `record.id`
 - editor/compose.js — `composeCapture(record)` → {canvas, notice, scale}: draws every frame at its document offset relative to selection (DPR-aware, uses bitmap/frame CSS ratio), scales down to canvas limits with notice. Already handles multi-frame stitched records.
 - editor/editor.js — stub: reads ?id, getCapture, composeCapture → draws into `#base-canvas`, sets title, shows notice/errors in `#status`, then deleteCapture(id)
 - content/autoscroll.js — `createAutoScroll(api)` → {start(onFrame), update(cx,cy), stop(), isActive}; rAF loop, 60 px edge zone (all 4 edges), speed 2→25 px/frame quadratic, clamps to docSize, calls onFrame after each scroll; shows `.autoscroll-pill` (bottom-center, data-dir up/down) while scrolling
@@ -71,6 +69,13 @@ return null; clear handler in finally. Canvas-limit scaling already in editor/co
 - None yet.
 
 ## Manual test steps for the user (for the last finished task)
+1. Reload extension; open a long article (e.g. a Wikipedia page with a sticky/fixed header site like github.com or MDN). Alt+Shift+S → Full Page → Capture.
+2. Page scrolls step by step; a white progress card "Capturing n / N" with a violet bar shows; page UI (toolbar/dim) is hidden at each shot. Afterwards scroll position restored, scrollbars/fixed elements back to normal.
+3. Editor tab shows one seamless image of the whole page; fixed header appears only once at the top (not repeated per slice); bottom slice is not duplicated.
+4. Repeat with a tall selection (drag + auto-scroll or Fit Bottom) → only that region is captured. Press Esc mid-capture → "Capture cancelled" toast, page restored, no editor tab.
+5. Very long page (> 16384 px tall at DPR) → editor shows a notice "Image was scaled to …%".
+
+Previous (T5):
 1. Reload extension; open a long page; Alt+Shift+S → white rounded toolbar centered at the top (not blurred) with 6 preset buttons + indigo Capture.
 2. Draw a selection in the middle. Full Width → box spans whole page width, same top/bottom. Fit Left → only left edge jumps to x=0. Fit Right → only right edge to page right. Fit Top → top edge to y=0 (scroll up to verify). Fit Bottom → bottom edge to document bottom (label height grows). Full Page → label shows docWidth × docHeight.
 3. With no selection, Fit presets start from the current viewport rect. Capture button = Enter (selection ≤ viewport captures; larger shows "Large captures arrive in a later version" and captures the visible part — T6 fixes).
