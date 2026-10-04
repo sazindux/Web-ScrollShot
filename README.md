@@ -15,6 +15,11 @@ After editing files, click the **Reload** (↻) button on the extension card, th
 
 ## Usage
 
+<p align="center">
+  <img src="https://i.ibb.co/R44S0ywg/file-361.jpg" width="30%" alt="Area Selection Overlay">
+  <img src="https://i.ibb.co/R44S0ywg/file-361.jpg" width="30%" alt="Annotation Editor">
+</p>
+
 - Click the toolbar icon **or** press `Alt+Shift+S` to start a capture on the current page.
 - Drag to select an area; use the floating toolbar for Full Page / Full Width / Fit presets.
 - `Enter` or the **Capture** button captures; `Esc` cancels.
