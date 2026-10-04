@@ -1,5 +1,5 @@
 # Handoff — Screenshot Extension
-Last updated: 2026-10-04 | Last chat ended after: T8
+Last updated: 2026-10-04 | Last chat ended after: T9
 
 ## Status
 | Task | Title | Status (DONE / IN PROGRESS / PENDING) | Commit |
@@ -13,21 +13,23 @@ Last updated: 2026-10-04 | Last chat ended after: T8
 | T6 | Scroll-and-stitch capture | DONE | |
 | T7 | Editor shell | DONE | |
 | T8 | Crop tool | DONE | |
-| T9 | Export suite | PENDING | |
+| T9 | Export suite | DONE | |
 | T10 | Annotation engine + shapes | PENDING | |
 | T11 | Freehand, highlighter, eraser, delete, polish | PENDING | |
 
 ## NEXT TASK
-T9: Export suite — create `editor/export.js` exporting `initExport(editor)` and import/call it in editor.js main() after initCrop (editor.js
-already skips its "Export coming soon" toast when `editor.hooks.export` is set — set `editor.hooks.export = {copy, download(fmt), pdf}`).
-Render function: `renderExport(editor)` → offscreen canvas of size `editor.crop.width × height`, drawImage(editor.image, -crop.x, -crop.y),
-then (T10) `editor.hooks.renderAnnotations?.(ctx)` with the same translate. Wire: `#btn-copy`, `#dd-download [data-format=png|jpeg|webp]`,
-`#btn-pdf`, `#dd-export [data-export=copy|png|jpeg|webp|pdf]`, right-panel `.action[data-export=copy|download|pdf]` (download uses
-`#file-format` select value), Ctrl/Cmd+C when nothing selected (`editor.hooks.hasSelection?.()`). Filename `screenshot-YYYYMMDD-HHmmss.<ext>`;
-JPEG fills white first, quality 0.92; toasts "Copied!" / "Downloaded …". Vendor jsPDF UMD into `lib/jspdf.umd.min.js` (download from
-https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js via curl; add `<script src="../lib/jspdf.umd.min.js">` to editor.html before
-the module script) → `new jspdf.jsPDF({unit:'pt', format:[w*0.75, h*0.75], orientation})`, addImage(JPEG 0.92 or PNG), save(). If curl fails,
-write a minimal PDF writer embedding JPEG via DCTDecode.
+T10: Annotation engine + shapes — create `editor/annotations.js` exporting `initAnnotations(editor)`; import/call it in editor.js main()
+after initExport (editor.js tool buttons call `editor.hooks.setTool(tool)` when set; tools: rect/ellipse/arrow/line from `#dd-shapes
+[data-tool]`, pen/highlighter/eraser buttons — pen/highlighter/eraser are T11 but register the names now). Model: `editor.annotations = []`
+of objects {id, type, points|rect, color, size, opacity}; coordinates in FULL-image px (crop-independent). Render into `view.overlayCtx`
+(overlay canvas is full-image sized and already offset by the crop) via a `requestRender()` rAF loop; also implement
+`editor.hooks.renderAnnotations(ctx)` (export.js calls it with ctx already translated to full-image coords) and
+`editor.hooks.hasSelection()` (export.js uses it for Ctrl+C). Pointer events: listen on `#viewport` (bail if `view.isPanTrigger(e)` /
+`view.spaceDown` / crop active `editor.hooks.crop.isActive()`), convert with `view.toImage`. Selection: click selects top-most object
+hit; draw handles on the overlay; move/resize with history commands; `#btn-delete` + Delete/Backspace remove selected. Color from
+`editor.color` / `hooks.onColorChange`; size from `#pen-size`. Push History commands {undo, redo} for add/delete/move/resize; set
+`hooks.onCropStart` to deselect. Shapes: Rectangle, Circle (ellipse), Arrow (line + filled head), Line; stroke width = pen size,
+opacity 1. Create `editor/tools/shapes.js` with the per-type draw/hit-test/bounds functions to keep annotations.js < 400 lines.
 
 ## What exists now (file map, 1 line per file)
 - manifest.json — MV3, permissions activeTab/scripting/storage/clipboardWrite, action, command `start-capture` (Alt+Shift+S), module service worker, web_accessible_resources for content/* and shared/*
@@ -57,7 +59,9 @@ write a minimal PDF writer embedding JPEG via DCTDecode.
 - editor/history.js — `class History(max=100)` {push(cmd{label,undo,redo}) (cmd must already be applied), undo, redo, clear, canUndo/canRedo, onChange}; `initHistory(editor)` sets `editor.history`, wires #btn-undo/#btn-redo (disabled state) + Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, Ctrl+Y; respects `editor.hooks.beforeHistory()` veto
 - editor/crop.js — `initCrop(editor)`: `editor.crop` {x,y,width,height} in FULL-image px (set to full image in `hooks.onImageLoaded`, inputs pre-filled); crop mode (#btn-crop toggle, key `C`) reveals the full image and edits a draft via viewport-space `#crop-layer > #crop-box` (8 `.crop-handle[data-handle]`, drag-move, drag-on-dim = create new rect, rule-of-thirds grid, `#crop-label` W × H), numeric `#crop-w/#crop-h` (change → draft; Enter → apply), `#crop-link`/`#crop-aspect` lock ratio (resize + inputs + create honour it), `#crop-apply`/Enter/dblclick apply → `editor.history.push` + `view.setCropRect`; `#crop-cancel`/Esc cancel. Hooks: `editor.hooks.crop = {start, apply, cancel, toggle, isActive}`, `hooks.onCropStart` (return false to veto), `hooks.onCropEnd`, `hooks.onCropChange(rect)`. Exports pure `resizeRect(start, handle, pt, ratio, W, H)`
 - editor/canvas-view.js additions — `imageWidth/imageHeight` (full base), `width/height` = visible crop size, `origin` {x,y}; `setCropRect(rect)` shrinks the stage to the rect and offsets both canvases by `-rect.x/-rect.y` (canvas pixels untouched → tool coords stay full-image px); `toImage/toClient` account for origin; new `toViewport(x,y)`; `clearOverlay` clears full image
-- editor/export.js, annotations.js, tools/ — still placeholders
+- editor/export.js — `initExport(editor)` → `editor.hooks.export = {copy, download(fmt), pdf, render}`; `renderExport(editor,{background})` = offscreen canvas of crop size, drawImage(base, -crop.x,-crop.y) then `hooks.renderAnnotations?.(ctx)` (ctx translated to full-image coords); `FORMATS` png/jpeg(white bg, q .92)/webp(q .92); `timestampName(ext)` → `screenshot-YYYYMMDD-HHmmss.ext`; `downloadBlob` via `<a download>`; copy = ClipboardItem image/png; PDF = vendored jsPDF (`globalThis.jspdf.jsPDF`, unit pt, page = px×0.75, PNG for <1.5 MP else JPEG .92, clamps to 14400 pt with notice). Wires #btn-copy, #btn-pdf, [data-format], [data-export] (copy/png/jpeg/webp/pdf/download→#file-format), Ctrl/Cmd+C when `!hooks.hasSelection?.()` and no text selection. Toasts "Copied!" / "Downloaded PNG" / "PDF exported"; errors as red toasts. Busy guard (`body.exporting`).
+- lib/jspdf.umd.min.js — jsPDF 2.5.2 UMD (MIT), loaded via plain `<script>` in editor.html before the module script; verified free of eval/new Function (MV3 CSP-safe)
+- editor/annotations.js, tools/ — still placeholders
 - lib/README.js — jsPDF to be vendored in T9
 - icons/16,32,48,128.png — generated indigo camera placeholder icons
 - README.md — load-unpacked instructions, shortcuts
@@ -72,6 +76,7 @@ write a minimal PDF writer embedding JPEG via DCTDecode.
 - Crop UI is drawn in viewport space (unscaled) rather than inside the CSS-scaled stage so handles/labels stay crisp; `view.onViewChange` re-positions it.
 - Undo/redo while a crop edit is in progress first cancels the edit (`hooks.beforeHistory`).
 - `[hidden] { display: none !important; }` added to editor.css — `.empty-state { display:grid }` previously overrode the hidden attribute and intercepted pointer events.
+- JPEG/WEBP quality fixed at 0.92 (no quality slider UI in the mockup); PDF embeds PNG for small images (<1.5 MP) and JPEG otherwise to keep file size sane.
 - Headless testing: Playwright (python) + chromium can be installed in the sandbox (`pip install playwright && python3 -m playwright install chromium && sudo python3 -m playwright install-deps chromium`); serve the repo with `python3 -m http.server 8765` and open `editor/editor.html`, then seed `editor.image` via `import('./editor.js')`.
 
 ## Message/API contracts
@@ -86,6 +91,13 @@ write a minimal PDF writer embedding JPEG via DCTDecode.
 - Editor headless test (seeded IndexedDB record, 1200×3000 image) passed: fit → 25%, status bar/zoom dropdown/keys OK. Not yet verified in a real Chrome extension context by the user.
 
 ## Manual test steps for the user (for the last finished task)
+1. Reload extension; capture anything; optionally crop. **Copy** (top bar, Quick Actions, Export ▾ → Copy, or Ctrl/Cmd+C) → toast "Copied!"; paste into any image-accepting app → exactly the cropped preview at full resolution.
+2. **Download ▾** → PNG / JPG / WEBP each save `screenshot-YYYYMMDD-HHmmss.<ext>` (JPG has a white background where the capture was transparent). Quick Actions → Download uses the "File Format" select.
+3. **Export PDF** (top bar / Quick Actions / Export ▾) → one-page PDF whose page equals the image size (px × 0.75 pt); opens in Chrome's PDF viewer with the image filling the page.
+4. Zoom in/out before exporting → output size unchanged (status bar "Canvas: W × H" = exported pixel size).
+5. Undo a crop and export again → full image exported.
+
+Previous (T8):
 1. Reload extension; capture anything; in the editor press **Crop** (or key `C`). The whole image is shown with a dimmed overlay and a blue crop box with 8 handles + rule-of-thirds grid; Apply/Cancel appear in the right panel; Width/Height inputs show the box size live.
 2. Drag the handles (corners + edges), drag inside to move, drag on the dimmed area to draw a fresh box. The label below the box shows W × H in true image pixels. Zoom (Ctrl+wheel / +−) while cropping: box stays aligned.
 3. Type Width 600 / Height 400 → box resizes anchored at its top-left. Toggle "Keep aspect ratio" (or the link icon) → further resizes/inputs keep the ratio.

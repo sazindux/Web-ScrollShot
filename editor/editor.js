@@ -8,6 +8,7 @@ import { CanvasView, isEditable } from './canvas-view.js';
 import { initDropdowns, showToast } from './ui.js';
 import { initHistory } from './history.js';
 import { initCrop } from './crop.js';
+import { initExport } from './export.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -113,14 +114,6 @@ function setupPlaceholders() {
     });
   });
 
-  // Actions that are implemented later show a friendly toast for now.
-  document.querySelectorAll('[data-export], #btn-copy, #btn-pdf, [data-format]').forEach((b) => {
-    b.addEventListener('click', (e) => {
-      if (editor.hooks.export) return; // export.js handles it
-      e.preventDefault();
-      showToast('Export coming soon');
-    });
-  });
 }
 
 async function loadCapture(view) {
@@ -164,6 +157,7 @@ async function main() {
   const view = setupView();
   initHistory(editor);
   initCrop(editor);
+  initExport(editor);
   setupPlaceholders();
   $('#empty-state').hidden = false;
   $('#empty-title').textContent = 'Loading capture…';
